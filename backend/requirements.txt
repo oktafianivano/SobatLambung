@@ -1,0 +1,8 @@
+apscheduler==3.11.3
+fastapi==0.162.2
+httpx==0.28.1
+pydantic==2.14.3
+pydantic_settings==2.16.2
+PyJWT==2.15.1
+python_bcrypt==0.3.2
+SQLAlchemy==2.1.8
