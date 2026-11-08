@@ -120,7 +120,7 @@ def init_scheduler():
 
     scheduler.add_job(
         trigger_scheduled_broadcast,
-        CronTrigger(hour=12, minute=0),
+        CronTrigger(hour=9, minute=55),
         args=["lunch"],
         id="alarm_lunch",
         name="Pengingat Makan Siang Sobat Lambung",
