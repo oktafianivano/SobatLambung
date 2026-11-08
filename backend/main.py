@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 from app.database import engine, Base
 from app.scheduler import init_scheduler
-from app.api.endpoints import public, auth, users
+from app.api.endpoints import public, auth, users, admin
 
 Base.metadata.create_all(bind=engine)
 
@@ -12,7 +12,7 @@ Base.metadata.create_all(bind=engine)
 async def lifespan(app: FastAPI):
     scheduler = init_scheduler()
     scheduler.start()
-    print("🚀 APScheduler Sobat Lambung aktif (07:00, 12:00, 18:30 WIB)")
+    print(f"🚀 APScheduler Sobat Lambung aktif (Jadwal: 09:55, 12:00, 18:30 WIB)")
     yield
     scheduler.shutdown()
     print("🛑 APScheduler dimatikan")
@@ -39,3 +39,4 @@ app.add_middleware(
 app.include_router(public.router, tags=["Public"])
 app.include_router(auth.router, prefix="/api", tags=["Auth"])
 app.include_router(users.router, prefix="/api/user", tags=["User Dashboard"])
+app.include_router(admin.router, prefix="/api/admin", tags=["Admin Tools"])

@@ -96,9 +96,16 @@ npm run dev -- --host
 ```
 *Aplikasi web sekarang bisa diakses dari HP dengan membuka `http://[IP-KOMPUTER-ANDA]:5173` di browser.*
 
----
+### 5. Admin Tools (API IT)
+Aplikasi ini dilengkapi dengan fitur Admin Tools untuk tim IT agar dapat mengelola data pengguna secara langsung melalui API.
 
-## 📂 Struktur Direktori Utama
+- **Akses**: Tersedia melalui dokumentasi Swagger di `http://[IP-KOMPUTER-ANDA]:8000/docs` pada kategori **Admin Tools**.
+- **Kunci Keamanan**: Memerlukan `x-admin-key` dengan nilai `sobatlambung_it_2026` di setiap permintaan.
+- **Fitur CRUD**:
+  - `POST /api/admin/create`: Menambah user baru secara manual.
+  - `GET /api/admin/list`: Melihat daftar semua user.
+  - `PUT /api/admin/update/{user_id}`: Mengubah data user.
+  - `DELETE /api/admin/delete/{user_id}`: Menghapus user.
 ```
 SobatLambung/
 ├── backend/                # API FastAPI (Python)

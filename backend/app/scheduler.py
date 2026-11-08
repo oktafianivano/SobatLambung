@@ -92,19 +92,19 @@ def trigger_scheduled_broadcast(meal_key: str):
         logger.info(f"Memulai broadcast pengingat {meal_key} ke {len(active_users)} pengguna aktif.")
         
         import asyncio
+        # Menggunakan new_event_loop dan run_until_complete untuk setiap user
+        # karena APScheduler berjalan di thread terpisah tanpa akses ke event loop main thread
         for user in active_users:
             msg = build_whatsapp_message(user.nama, meal_key)
             try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    loop.create_task(send_fonnte_message(user.no_wa, msg))
-                else:
-                    asyncio.run(send_fonnte_message(user.no_wa, msg))
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(send_fonnte_message(user.no_wa, msg))
+                loop.close()
             except Exception as e:
                 logger.error(f"Error mengirim ke user {user.id}: {e}")
     finally:
         db.close()
-
 
 def init_scheduler():
     scheduler = BackgroundScheduler(timezone="Asia/Jakarta")
@@ -120,7 +120,7 @@ def init_scheduler():
 
     scheduler.add_job(
         trigger_scheduled_broadcast,
-        CronTrigger(hour=9, minute=55),
+        CronTrigger(hour=12, minute=0),
         args=["lunch"],
         id="alarm_lunch",
         name="Pengingat Makan Siang Sobat Lambung",
