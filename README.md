@@ -38,7 +38,7 @@ cd sobat-lambung
 
 ### 2. Setup Database (Supabase)
 1. Buat proyek baru di [Supabase](https://supabase.com/).
-2. Masuk ke menu **Project Settings > Database** dan salin **Connection string (URI)**. Pastikan menggunakan format PostgreSQL (contoh: `postgresql://postgres.[namaproject]:[password]@aws-0-region.pooler.supabase.com:6543/postgres`).
+2. Masuk ke menu **Project Settings > Database** dan salin **Connection string (URI)**.
 
 ### 3. Setup Backend
 Buka terminal baru dan masuk ke folder `backend`:
@@ -73,11 +73,11 @@ ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=1440
 ```
 
-Jalankan server Backend:
+Jalankan server Backend agar bisa diakses dari perangkat lain di jaringan yang sama:
 ```bash
-uvicorn main:app --reload --port 8000
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
-*API sekarang berjalan di `http://localhost:8000` dan dokumentasi Swagger di `http://localhost:8000/docs`.*
+*API sekarang berjalan dan bisa diakses via IP komputer Anda (contoh: `http://192.168.18.28:8000`).*
 
 ### 4. Setup Frontend
 Buka terminal baru dan masuk ke folder `frontend`:
@@ -90,11 +90,11 @@ Instal dependensi Node.js:
 npm install
 ```
 
-Jalankan server pengembangan Frontend:
+Jalankan server pengembangan Frontend agar bisa diakses dari perangkat lain:
 ```bash
-npm run dev
+npm run dev -- --host
 ```
-*Aplikasi web sekarang berjalan di `http://localhost:3000` (atau port yang tertera di terminal).*
+*Aplikasi web sekarang bisa diakses dari HP dengan membuka `http://[IP-KOMPUTER-ANDA]:5173` di browser.*
 
 ---
 
