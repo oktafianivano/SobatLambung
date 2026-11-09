@@ -4,7 +4,8 @@ from app.config import settings
 
 engine = create_engine(
     settings.DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://"),
-    echo=False
+    pool_pre_ping=True, 
+    pool_recycle=3600 
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
