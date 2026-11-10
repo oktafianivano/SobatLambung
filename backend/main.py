@@ -7,7 +7,11 @@ from app.config import settings
 from app.scheduler import init_scheduler
 from app.api.router import API_V1_PREFIX, api_legacy_router, api_v1_router
 
-Base.metadata.create_all(bind=engine)
+# Skema database dikelola oleh Alembic (lihat folder `alembic/`).
+# create_all hanya dipakai untuk kenyamanan development/test; di production
+# jalankan `alembic upgrade head` lebih dahulu (sudah otomatis di Dockerfile).
+if settings.APP_ENV.lower() != "production":
+    Base.metadata.create_all(bind=engine)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

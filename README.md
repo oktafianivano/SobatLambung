@@ -154,7 +154,35 @@ npm run lint
 ```
 Setiap `push`/`pull request` ke branch `main` otomatis menjalankan test backend & frontend melalui GitHub Actions (`.github/workflows/ci.yml`).
 
-### 8. Menjalankan dengan Docker
+### 8. Migrasi Database (Alembic)
+Skema database dikelola dengan **Alembic**. Migrasi awal bersifat *baseline*: menandai skema yang sudah ada tanpa mengubah/menghapus data.
+
+```bash
+cd backend
+
+# Terapkan semua migrasi (wajib sebelum deploy / setelah pull)
+alembic upgrade head
+
+# Cek apakah model sudah sama dengan database
+alembic check
+
+# Setelah mengubah app/models.py, buat migrasi baru
+alembic revision --autogenerate -m "tambah kolom x"
+
+# Lihat riwayat & status
+alembic history
+alembic current
+
+# Rollback satu langkah
+alembic downgrade -1
+```
+
+Catatan:
+- URL database diambil dari `backend/.env` (`DATABASE_URL`), **bukan** dari `alembic.ini`, jadi tidak ada kredensial di repo.
+- Di mode `APP_ENV=development` aplikasi masih menjalankan `create_all` agar praktis saat ngoding. Di `APP_ENV=production` pembuatan tabel dilewati — jalankan `alembic upgrade head` (sudah otomatis di Dockerfile).
+- Selalu review file migrasi hasil `--autogenerate` sebelum commit.
+
+### 9. Menjalankan dengan Docker
 Prasyarat: **Docker Desktop** dengan Docker Compose v2.
 
 ```bash
@@ -169,6 +197,7 @@ curl http://localhost:8000/health
 
 - Frontend: `http://localhost:3000`
 - Backend: `http://localhost:8000` (docs di `/docs`)
+- Migrasi database dijalankan otomatis saat container backend start (`alembic upgrade head`).
 - Ubah alamat API yang ditanam ke frontend saat build:
   ```bash
   # PowerShell
@@ -191,9 +220,11 @@ SobatLambung/
 │   │   ├── scheduler.py       # Logika APScheduler (Pengingat WA Fonnte)
 │   │   ├── schemas.py         # Pydantic Models (Validasi Data API)
 │   │   └── utils.py           # Fungsi Bantuan (Helper/Formatter)
+│   ├── alembic/               # Migrasi database (env.py + versions/)
 │   ├── tests/                 # Unit test backend (pytest)
 │   ├── .env                   # Environment variables rahasia
 │   ├── .env.example           # Template konfigurasi environment
+│   ├── alembic.ini            # Konfigurasi Alembic (tanpa kredensial)
 │   ├── Dockerfile             # Image backend (uvicorn)
 │   ├── main.py                # Entry point FastAPI
 │   ├── pytest.ini             # Konfigurasi pytest
