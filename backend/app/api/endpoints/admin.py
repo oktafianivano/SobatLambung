@@ -6,11 +6,9 @@ import logging
 from pydantic import BaseModel
 from typing import Optional
 
-# Inisialisasi logger
 logger = logging.getLogger("admin_tools")
 router = APIRouter()
 
-# Dependency untuk mendapatkan session database
 def get_db():
     db = SessionLocal()
     try:
@@ -18,16 +16,13 @@ def get_db():
     finally:
         db.close()
 
-# Kunci rahasia sederhana untuk keamanan
 ADMIN_SECRET = "sobatlambung_it_2026"
 
-# Skema untuk Create/Update agar datanya rapi
 class UserAdminSchema(BaseModel):
     nama: Optional[str] = None
     no_wa: Optional[str] = None
     is_alarm_active: Optional[bool] = None
 
-# 1. Tambah User Baru
 @router.post("/create", summary="Tambah user baru secara manual (Akses IT)")
 def create_user(
     data: UserAdminSchema,
@@ -43,7 +38,6 @@ def create_user(
     db.refresh(new_user)
     return {"message": "User berhasil dibuat", "user_id": new_user.id}
 
-# 2. List semua user
 @router.get("/list", summary="List semua user (Akses IT)")
 def list_users(
     x_admin_key: str = Header(...), 
@@ -55,7 +49,6 @@ def list_users(
     users = db.query(User).all()
     return [{"id": u.id, "nama": u.nama, "no_wa": u.no_wa, "is_alarm_active": u.is_alarm_active} for u in users]
 
-# 3. Update Data User (Edit)
 @router.put("/update/{user_id}", summary="Update data user (Akses IT)")
 def update_user(
     user_id: int,
@@ -77,7 +70,6 @@ def update_user(
     db.commit()
     return {"message": f"User {user_id} berhasil diupdate"}
 
-# 4. Hapus User
 @router.delete("/delete/{user_id}", summary="Hapus user (Akses IT)")
 def delete_user_by_admin(
     user_id: int, 

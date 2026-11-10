@@ -92,8 +92,6 @@ def trigger_scheduled_broadcast(meal_key: str):
         logger.info(f"Memulai broadcast pengingat {meal_key} ke {len(active_users)} pengguna aktif.")
         
         import asyncio
-        # Menggunakan new_event_loop dan run_until_complete untuk setiap user
-        # karena APScheduler berjalan di thread terpisah tanpa akses ke event loop main thread
         for user in active_users:
             msg = build_whatsapp_message(user.nama, meal_key)
             try:
