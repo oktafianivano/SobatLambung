@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models import User
+from app.config import settings
 import logging
 from pydantic import BaseModel
 from typing import Optional
@@ -16,7 +17,7 @@ def get_db():
     finally:
         db.close()
 
-ADMIN_SECRET = "sobatlambung_it_2026"
+ADMIN_SECRET = settings.ADMIN_API_KEY
 
 class UserAdminSchema(BaseModel):
     nama: Optional[str] = None

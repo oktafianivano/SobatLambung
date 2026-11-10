@@ -75,6 +75,12 @@ FONNTE_API_URL=https://api.fonnte.com/send
 SECRET_KEY=buat_secret_key_yang_panjang_dan_acak_disini
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=1440
+
+# Admin Tools
+ADMIN_API_KEY=kunci_admin_anda
+
+# CORS (pisahkan dengan koma; sesuaikan IP LAN Anda)
+CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 ```
 
 Jalankan server Backend agar bisa diakses dari perangkat lain di jaringan yang sama:
@@ -82,6 +88,7 @@ Jalankan server Backend agar bisa diakses dari perangkat lain di jaringan yang s
 uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 *API sekarang berjalan dan bisa diakses via IP komputer Anda (contoh: `http://192.168.18.28:8000`).*
+*Health check tersedia di `GET /health` untuk kebutuhan monitoring/deploy.*
 
 ### 4. Setup Frontend
 Buka terminal baru dan masuk ke folder `frontend`:
@@ -104,7 +111,7 @@ npm run dev -- --host
 Aplikasi ini dilengkapi dengan fitur Admin Tools untuk tim IT agar dapat mengelola data pengguna secara langsung melalui API.
 
 - **Akses**: Tersedia melalui dokumentasi Swagger di `http://[IP-KOMPUTER-ANDA]:8000/docs` pada kategori **Admin Tools**.
-- **Kunci Keamanan**: Memerlukan `x-admin-key` dengan nilai `sobatlambung_it_2026` di setiap permintaan.
+- **Kunci Keamanan**: Memerlukan header `x-admin-key` yang nilainya diambil dari variabel `ADMIN_API_KEY` di file `.env` (jangan hardcode di kode).
 - **Fitur CRUD**:
   - `POST /api/admin/create`: Menambah user baru secara manual.
   - `GET /api/admin/list`: Melihat daftar semua user.
@@ -118,31 +125,62 @@ Jika pengingat WhatsApp tidak terkirim atau status di dasbor Fonnte menunjukkan 
 3. **Resend Pesan**: Klik tombol `Resend` pada log pengiriman di dasbor Fonnte untuk memaksa sistem mengirim ulang pesan yang sempat tertunda.
 4. **Pastikan HP Aktif**: Pastikan HP yang digunakan untuk *scan* QR terhubung ke internet dan aplikasi WhatsApp tidak dalam mode tidur.
 
+### 7. Menjalankan Test & CI
+**Backend (pytest):**
+```bash
+cd backend
+pip install -r requirements-dev.txt
+pytest
+```
+
+**Frontend (Node test runner via tsx):**
+```bash
+cd frontend
+npm test
+```
+
+**Type check + CI:**
+```bash
+cd frontend
+npm run lint
+```
+Setiap `push`/`pull request` ke branch `main` otomatis menjalankan test backend & frontend melalui GitHub Actions (`.github/workflows/ci.yml`).
+
 ```
 SobatLambung/
-├── backend/                # API FastAPI (Python)
+├── .github/workflows/         # CI (GitHub Actions)
+├── backend/                   # API FastAPI (Python)
 │   ├── app/
-│   │   ├── api/            # Endpoint & Dependencies (auth, users, public)
-│   │   ├── crud/           # Operasi Database (Create, Read, Update)
-│   │   ├── auth.py         # Logika Autentikasi (JWT & Hashing)
-│   │   ├── config.py       # Konfigurasi Environment
-│   │   ├── database.py     # Setup Koneksi Database (Supabase)
-│   │   ├── models.py       # Model SQLAlchemy (Tabel Database)
-│   │   ├── scheduler.py    # Logika APScheduler (Pengingat WA Fonnte)
-│   │   ├── schemas.py      # Pydantic Models (Validasi Data API)
-│   │   └── utils.py        # Fungsi Bantuan (Helper/Formatter)
-│   ├── scripts/            # Script tambahan (Opsional)
-│   ├── .env                # Environment variables rahasia
-│   ├── main.py             # Entry point FastAPI
-│   └── requirements.txt    # Dependensi Python
+│   │   ├── api/               # Endpoint & Dependencies (auth, users, public)
+│   │   ├── crud/              # Operasi Database (Create, Read, Update)
+│   │   ├── auth.py            # Logika Autentikasi (JWT & Hashing)
+│   │   ├── config.py          # Konfigurasi Environment
+│   │   ├── database.py        # Setup Koneksi Database (Supabase)
+│   │   ├── models.py          # Model SQLAlchemy (Tabel Database)
+│   │   ├── scheduler.py       # Logika APScheduler (Pengingat WA Fonnte)
+│   │   ├── schemas.py         # Pydantic Models (Validasi Data API)
+│   │   └── utils.py           # Fungsi Bantuan (Helper/Formatter)
+│   ├── tests/                 # Unit test backend (pytest)
+│   ├── .env                   # Environment variables rahasia
+│   ├── .env.example           # Template konfigurasi environment
+│   ├── main.py                # Entry point FastAPI
+│   ├── pytest.ini             # Konfigurasi pytest
+│   ├── requirements.txt       # Dependensi Python (produksi)
+│   └── requirements-dev.txt   # Dependensi tambahan (development/testing)
 │
-└── frontend/               # UI React + Vite (TypeScript)
-    ├── src/
-    │   ├── components/     # UI Components (Modal, Button, dll)
-    │   ├── pages/          # Halaman (Dashboard, dll)
-    │   └── App.tsx         # Entry point React
-    └── package.json        # Dependensi Node.js
+├── frontend/                  # UI React + Vite (TypeScript)
+│   ├── src/
+│   │   ├── components/        # UI Components (Modal, Button, dll)
+│   │   ├── data/              # Data statis (edukasi, menu)
+│   │   ├── logic/             # Logika bisnis & unit test
+│   │   ├── types/             # Definisi tipe TypeScript
+│   │   ├── config.ts          # Konfigurasi API URL
+│   │   └── App.tsx            # Entry point React
+│   └── package.json           # Dependensi Node.js
+│
+├── LICENSE                    # Lisensi MIT
+└── README.md                  # Dokumentasi
 ```
 
 ## 📝 Lisensi
-Proyek ini dibuat untuk keperluan edukasi dan open-source.
+Proyek ini dilisensikan di bawah **MIT License** — lihat file [LICENSE](LICENSE).

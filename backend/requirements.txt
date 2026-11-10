@@ -16,7 +16,7 @@ pydantic==2.14.3
 pydantic-settings==2.16.2
 pydantic_core==2.50.4
 PyJWT==2.15.1
-python-bcrypt==0.3.2
+bcrypt
 python-dotenv==1.2.4
 PyYAML==6.0.3
 SQLAlchemy==2.1.8

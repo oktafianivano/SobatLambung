@@ -1,14 +1,37 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+
 class Settings(BaseSettings):
-    APP_ENV: str 
+    # Application
+    APP_ENV: str = "development"
+
+    # Security / JWT
     SECRET_KEY: str
-    ALGORITHM: str 
-    ACCESS_TOKEN_EXPIRE_MINUTES: int 
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
+
+    # Database
     DATABASE_URL: str
-    FONNTE_TOKEN: str
-    FONNTE_API_URL: str 
+
+    # WhatsApp Gateway (Fonnte)
+    FONNTE_TOKEN: str = ""
+    FONNTE_API_URL: str = "https://api.fonnte.com/send"
+
+    # Admin Tools
+    ADMIN_API_KEY: str = "sobatlambung_it_2026"
+
+    # CORS (dipisah koma)
+    CORS_ORIGINS: str = (
+        "http://localhost:3000,http://127.0.0.1:3000,"
+        "http://192.168.18.28:3000,http://172.19.28.21:3000"
+    )
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        """Ubah string CORS_ORIGINS menjadi list yang siap dipakai middleware."""
+        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+
 
 settings = Settings()

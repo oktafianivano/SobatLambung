@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from app.database import engine, Base
+from app.config import settings
 from app.scheduler import init_scheduler
 from app.api.endpoints import public, auth, users, admin
 
@@ -26,16 +27,21 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000", 
-        "http://127.0.0.1:3000",
-        "http://192.168.18.28:3000",
-        "http://172.19.28.21:3000"
-    ],
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/health", tags=["Health"])
+def health_check():
+    """Dipakai oleh monitoring / platform deploy untuk memastikan API hidup."""
+    return {
+        "status": "ok",
+        "service": "sobat-lambung-api",
+        "version": app.version,
+        "env": settings.APP_ENV,
+    }
 
 app.include_router(public.router, tags=["Public"])
 app.include_router(auth.router, prefix="/api", tags=["Auth"])
