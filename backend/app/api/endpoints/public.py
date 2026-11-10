@@ -11,7 +11,7 @@ def read_root():
         "docs_url": "/docs"
     }
 
-@router.get("/api/education/content")
+@router.get("/education/content")
 def get_education_content():
     return {
         "gastritis": {
@@ -37,7 +37,7 @@ def get_education_content():
         ]
     }
 
-@router.get("/api/schedules")
+@router.get("/schedules")
 def get_static_schedules():
     return [
         {"id": "breakfast", "time": "06:30 WIB", "label": "Sarapan Sehat", "description": "Menetralkan asam lambung pagi hari."},

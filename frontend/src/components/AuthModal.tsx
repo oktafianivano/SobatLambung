@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { API_URL } from '../config';
+import { apiUrl } from '../services/api';
 import { UserProfile } from '../types';
 import { normalizeWhatsAppNumber, validatePassword } from '../logic/sobatLambung';
 import { PasswordInput } from './PasswordInput';
@@ -71,7 +71,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
 
     setIsLoading(true);
-    fetch(`${API_URL}/api/forgot-password/request`, {
+    fetch(apiUrl('/auth/forgot-password/request'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ no_wa: phoneCheck.formatted }),
@@ -113,7 +113,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
 
     setIsLoading(true);
-    fetch(`${API_URL}/api/forgot-password/reset`, {
+    fetch(apiUrl('/auth/forgot-password/reset'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -158,13 +158,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
     setIsLoading(true);
 
-    const endpoint = mode === 'register' ? '/api/register' : '/api/login';
+    const endpoint = mode === 'register' ? '/auth/register' : '/auth/login';
     const payload =
       mode === 'register'
         ? { nama, no_wa: phoneCheck.formatted, password }
         : { no_wa: phoneCheck.formatted, password };
 
-    fetch(`${API_URL}${endpoint}`, {
+    fetch(apiUrl(endpoint), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),

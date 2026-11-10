@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { API_URL } from '../config';
+import { apiUrl } from '../services/api';
 import { UserProfile } from '../types';
 import { normalizeWhatsAppNumber, validatePassword } from '../logic/sobatLambung';
 import { PasswordInput } from './PasswordInput';
@@ -75,7 +75,7 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
     }
 
     setIsSavingProfile(true);
-    fetch(`${API_URL}/api/user/profile`, {
+    fetch(apiUrl('/user/profile'), {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -125,7 +125,7 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
     }
 
     setIsSavingPassword(true);
-    fetch(`${API_URL}/api/user/change-password`, {
+    fetch(apiUrl('/user/change-password'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -1,6 +1,10 @@
 # Backend .gitignore
 venv/
+.venv/
 __pycache__/
-*.pyc
+*.py[cod]
+.pytest_cache/
 .env
+.env.*
+!.env.example
 .DS_Store

@@ -1,4 +1,4 @@
-import { API_URL } from '../config';
+import { apiUrl } from '../services/api';
 import React, { useState } from 'react';
 import { UserProfile } from '../types';
 import { STATIC_SCHEDULES } from '../logic/sobatLambung';
@@ -35,7 +35,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     setIsSendingTest(true);
     setToggleFeedback(null);
     try {
-      const response = await fetch(`${API_URL}/api/user/test-notification?meal_key=breakfast`, {
+      const response = await fetch(`${apiUrl('/user/test-notification')}?meal_key=breakfast`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${currentUser.token}`,

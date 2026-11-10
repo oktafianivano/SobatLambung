@@ -90,6 +90,8 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 *API sekarang berjalan dan bisa diakses via IP komputer Anda (contoh: `http://192.168.18.28:8000`).*
 *Health check tersedia di `GET /health` untuk kebutuhan monitoring/deploy.*
 
+**Versi API**: semua endpoint resmi berada di prefix `/api/v1` (terlihat di Swagger). Prefix lama `/api/...` tetap aktif sebagai alias kompatibilitas, tetapi tidak ditampilkan di dokumentasi.
+
 ### 4. Setup Frontend
 Buka terminal baru dan masuk ke folder `frontend`:
 ```bash
@@ -101,11 +103,17 @@ Instal dependensi Node.js:
 npm install
 ```
 
+Opsional, buat `frontend/.env` bila backend berada di alamat lain:
+```env
+VITE_API_URL=http://192.168.18.28:8000
+```
+Jika dikosongkan, frontend otomatis memakai `http://<host-halaman>:8000`.
+
 Jalankan server pengembangan Frontend agar bisa diakses dari perangkat lain:
 ```bash
 npm run dev -- --host
 ```
-*Aplikasi web sekarang bisa diakses dari HP dengan membuka `http://[IP-KOMPUTER-ANDA]:5173` di browser.*
+*Aplikasi web sekarang bisa diakses dari HP dengan membuka `http://[IP-KOMPUTER-ANDA]:3000` di browser.*
 
 ### 5. Admin Tools (API IT)
 Aplikasi ini dilengkapi dengan fitur Admin Tools untuk tim IT agar dapat mengelola data pengguna secara langsung melalui API.
@@ -113,10 +121,10 @@ Aplikasi ini dilengkapi dengan fitur Admin Tools untuk tim IT agar dapat mengelo
 - **Akses**: Tersedia melalui dokumentasi Swagger di `http://[IP-KOMPUTER-ANDA]:8000/docs` pada kategori **Admin Tools**.
 - **Kunci Keamanan**: Memerlukan header `x-admin-key` yang nilainya diambil dari variabel `ADMIN_API_KEY` di file `.env` (jangan hardcode di kode).
 - **Fitur CRUD**:
-  - `POST /api/admin/create`: Menambah user baru secara manual.
-  - `GET /api/admin/list`: Melihat daftar semua user.
-  - `PUT /api/admin/update/{user_id}`: Mengubah data user.
-  - `DELETE /api/admin/delete/{user_id}`: Menghapus user.
+  - `POST /api/v1/admin/create`: Menambah user baru secara manual.
+  - `GET /api/v1/admin/list`: Melihat daftar semua user.
+  - `PUT /api/v1/admin/update/{user_id}`: Mengubah data user.
+  - `DELETE /api/v1/admin/delete/{user_id}`: Menghapus user.
 
 ### 6. Troubleshooting WhatsApp (Fonnte)
 Jika pengingat WhatsApp tidak terkirim atau status di dasbor Fonnte menunjukkan `pending`, lakukan langkah berikut:
@@ -146,12 +154,35 @@ npm run lint
 ```
 Setiap `push`/`pull request` ke branch `main` otomatis menjalankan test backend & frontend melalui GitHub Actions (`.github/workflows/ci.yml`).
 
+### 8. Menjalankan dengan Docker
+Prasyarat: **Docker Desktop** dengan Docker Compose v2.
+
+```bash
+# 1. Pastikan backend/.env sudah berisi DATABASE_URL, SECRET_KEY, FONNTE_TOKEN, dll.
+# 2. Bangun & jalankan seluruh layanan
+docker compose up --build -d
+
+# 3. Cek status
+docker compose ps
+curl http://localhost:8000/health
+```
+
+- Frontend: `http://localhost:3000`
+- Backend: `http://localhost:8000` (docs di `/docs`)
+- Ubah alamat API yang ditanam ke frontend saat build:
+  ```bash
+  # PowerShell
+  $env:VITE_API_URL="http://192.168.18.28:8000"; docker compose up --build -d
+  ```
+- Hentikan: `docker compose down`
+
 ```
 SobatLambung/
 ├── .github/workflows/         # CI (GitHub Actions)
 ├── backend/                   # API FastAPI (Python)
 │   ├── app/
 │   │   ├── api/               # Endpoint & Dependencies (auth, users, public)
+│   │   │   └── router.py      # Registrasi versi API (/api/v1 + alias /api)
 │   │   ├── crud/              # Operasi Database (Create, Read, Update)
 │   │   ├── auth.py            # Logika Autentikasi (JWT & Hashing)
 │   │   ├── config.py          # Konfigurasi Environment
@@ -163,6 +194,7 @@ SobatLambung/
 │   ├── tests/                 # Unit test backend (pytest)
 │   ├── .env                   # Environment variables rahasia
 │   ├── .env.example           # Template konfigurasi environment
+│   ├── Dockerfile             # Image backend (uvicorn)
 │   ├── main.py                # Entry point FastAPI
 │   ├── pytest.ini             # Konfigurasi pytest
 │   ├── requirements.txt       # Dependensi Python (produksi)
@@ -173,11 +205,15 @@ SobatLambung/
 │   │   ├── components/        # UI Components (Modal, Button, dll)
 │   │   ├── data/              # Data statis (edukasi, menu)
 │   │   ├── logic/             # Logika bisnis & unit test
+│   │   ├── services/          # Client HTTP terpusat (api.ts)
 │   │   ├── types/             # Definisi tipe TypeScript
-│   │   ├── config.ts          # Konfigurasi API URL
+│   │   ├── config.ts          # Konfigurasi API URL (VITE_API_URL)
 │   │   └── App.tsx            # Entry point React
+│   ├── Dockerfile             # Build statis + nginx
+│   ├── nginx.conf             # Konfigurasi SPA & cache
 │   └── package.json           # Dependensi Node.js
 │
+├── docker-compose.yml         # Orkestrasi backend + frontend
 ├── LICENSE                    # Lisensi MIT
 └── README.md                  # Dokumentasi
 ```
