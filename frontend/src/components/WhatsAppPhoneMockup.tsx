@@ -19,7 +19,7 @@ export const WhatsAppPhoneMockup: React.FC<WhatsAppPhoneMockupProps> = ({
   >([
     {
       id: 'init-1',
-      time: '07:00',
+      time: '06:30',
       text: generateWhatsAppReminderMessage(userName || 'Mahasiswa', 'breakfast'),
       meal: 'breakfast',
     },

@@ -100,7 +100,7 @@ export const HeroEducation: React.FC<HeroEducationProps> = ({
             </div>
             <div>
               <h4 className="font-semibold text-sm text-white">Alarm WhatsApp Standar Medis</h4>
-              <p className="text-xs text-emerald-100/70">Jadwal 07:00, 12:00, 18:30 WIB dengan rekomendasi menu ramah lambung.</p>
+              <p className="text-xs text-emerald-100/70">Jadwal 06:30, 12:00, 18:30 WIB dengan rekomendasi menu ramah lambung.</p>
             </div>
           </div>
 

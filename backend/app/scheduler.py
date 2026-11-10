@@ -12,7 +12,7 @@ logger = logging.getLogger("sobat_lambung_scheduler")
 
 MEAL_TEMPLATES = {
     "breakfast": {
-        "title": "🌅 Waktunya Sarapan Sehat (07:00 WIB)",
+        "title": "🌅 Waktunya Sarapan Sehat (06:30 WIB)",
         "menu": ["Bubur ayam tanpa sambal / kuah kuning ringan", "Oatmeal dengan pisang matang & madu", "Roti gandum panggang + telur rebus"],
         "advice": "Jangan biarkan lambung kosong lebih dari 12 jam sejak malam. Asam lambung pagi hari dapat mengikis mukosa jika tidak dinetralisir sarapan rendah asam."
     },
@@ -109,7 +109,7 @@ def init_scheduler():
 
     scheduler.add_job(
         trigger_scheduled_broadcast,
-        CronTrigger(hour=7, minute=0),
+        CronTrigger(hour=6, minute=30),
         args=["breakfast"],
         id="alarm_breakfast",
         name="Pengingat Sarapan Sobat Lambung",

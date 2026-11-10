@@ -17,9 +17,9 @@ export interface ScheduleItem {
 export const STATIC_SCHEDULES: ScheduleItem[] = [
   {
     id: 'breakfast',
-    time: '07:00 WIB',
-    hour: 7,
-    minute: 0,
+    time: '06:30 WIB',
+    hour: 6,
+    minute: 30,
     label: 'Sarapan Pagi Ramah Lambung',
     shortDesc: 'Menetralkan lonjakan asam lambung setelah puasa malam.',
     medicalRationale: 'Asam klorida (HCl) di lambung mencapai keasaman tinggi di pagi hari. Sarapan berserat larut dan rendah asam mencegah erosi dinding mukosa lambung.',
