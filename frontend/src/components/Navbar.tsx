@@ -75,7 +75,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               }`}
             >
               <QrCode className="w-4 h-4 text-emerald-600" />
-              Bagikan Aplikasi
+              Bagikan ke Teman
             </button>
 
             <button
@@ -172,7 +172,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               activeTab === 'share' ? 'bg-emerald-100 text-emerald-800 font-semibold' : 'text-slate-600'
             }`}
           >
-            Bagikan Aplikasi
+            Bagikan ke Teman
           </button>
           <button
             onClick={() => setActiveTab('dashboard')}

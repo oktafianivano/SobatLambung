@@ -1,18 +1,4 @@
-# Python
-venv/
-__pycache__/
-*.pyc
-
-# Node
-node_modules/
-dist/
-build/
-coverage/
-
-# OS/System
+# Root .gitignore
+/backend/venv/
+/frontend/node_modules/
 .DS_Store
-*.log
-
-# Environment
-.env*
-!.env.example

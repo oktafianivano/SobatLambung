@@ -16,7 +16,7 @@ export const HeroEducation: React.FC<HeroEducationProps> = ({
   const [selectedQuizAnswer, setSelectedQuizAnswer] = useState<number | null>(null);
 
   const quizOptions = [
-    { text: 'Sering skip sarapan karena buru-buru kelas pagi 07:00', risk: 'Tinggi (Rentan Gastritis Akut)' },
+    { text: 'Sering skip sarapan karena buru-buru kelas pagi', risk: 'Tinggi (Rentan Gastritis Akut)' },
     { text: 'Langsung rebahan atau tidur di kasur kos setelah makan mie/nasi', risk: 'Sangat Tinggi (Pemicu Utama Reflux GERD)' },
     { text: 'Minum es kopi susu pekat saat perut masih kosong', risk: 'Tinggi (Merangsang Sekresi Asam HCl Ekstrem)' },
     { text: 'Makan tepat waktu 3x sehari dan jeda 2-3 jam sebelum tidur', risk: 'Rendah (Pola Lambung Sehat)' },
@@ -70,7 +70,7 @@ export const HeroEducation: React.FC<HeroEducationProps> = ({
               className="px-5 py-3 rounded-xl bg-white/10 hover:bg-white/15 text-white font-medium text-sm border border-white/20 backdrop-blur-sm transition-colors flex items-center gap-2 cursor-pointer"
             >
               <QrCode className="w-4 h-4 text-emerald-300" />
-              Bagikan Aplikasi
+              Bagikan ke Teman
             </button>
 
             <button
@@ -166,7 +166,7 @@ export const HeroEducation: React.FC<HeroEducationProps> = ({
             <HeartPulse className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
             <div>
               <span className="font-bold text-slate-900">Solusi Sobat Lambung: </span>
-              Kunci utama penyembuhan maag & GERD bagi mahasiswa adalah <strong>Keteraturan Jadwal Makan</strong>. Dengan mengaktifkan pengingat otomatis di jam 07:00, 12:00, dan 18:30 WIB, kamu tidak akan lagi lupa makan di sela kesibukan tugas kampus.
+              Kunci utama penyembuhan maag & GERD bagi mahasiswa adalah <strong>Keteraturan Jadwal Makan</strong>. Dengan mengaktifkan pengingat otomatis, kamu tidak akan lagi lupa makan di sela kesibukan tugas kampus.
             </div>
           </div>
         )}

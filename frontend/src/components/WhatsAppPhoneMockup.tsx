@@ -24,33 +24,7 @@ export const WhatsAppPhoneMockup: React.FC<WhatsAppPhoneMockupProps> = ({
       meal: 'breakfast',
     },
   ]);
-  const [isSending, setIsSending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-
-  const handleSendSimulatedAlarm = (mealKey: 'breakfast' | 'lunch' | 'dinner') => {
-    if (!isAlarmActive) {
-      setNotice('⚠️ Gagal mengirim: Sakelar alarm mahasiswa sedang Nonaktif. Sistem APScheduler melewati nomor ini.');
-      setTimeout(() => setNotice(null), 4000);
-      return;
-    }
-
-    setIsSending(true);
-    setNotice(null);
-
-    setTimeout(() => {
-      setIsSending(false);
-      const schedule = STATIC_SCHEDULES.find((s) => s.id === mealKey) || STATIC_SCHEDULES[0];
-      const newMsg = {
-        id: 'msg-' + Date.now(),
-        time: schedule.time.replace(' WIB', ''),
-        text: generateWhatsAppReminderMessage(userName || 'Mahasiswa', mealKey),
-        meal: mealKey,
-      };
-      setSimulatedMessages((prev) => [...prev, newMsg]);
-      setNotice(`✅ Pesan pengingat [${schedule.label}] berhasil dikirim via Fonnte Gateway ke ${userPhone}!`);
-      setTimeout(() => setNotice(null), 4000);
-    }, 600);
-  };
 
   return (
     <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-6">
@@ -70,18 +44,10 @@ export const WhatsAppPhoneMockup: React.FC<WhatsAppPhoneMockupProps> = ({
 
         {/* Action Trigger */}
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => handleSendSimulatedAlarm(selectedMeal)}
-            disabled={isSending}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer ${
-              isAlarmActive
-                ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                : 'bg-slate-200 text-slate-500 hover:bg-slate-300'
-            }`}
-          >
-            <Send className="w-3.5 h-3.5" />
-            {isSending ? 'Mengirim via Fonnte...' : 'Uji Kirim Pengingat Sekarang'}
-          </button>
+          <div className="px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs bg-slate-100 text-slate-500 border border-slate-200">
+            <Sparkles className="w-3.5 h-3.5" />
+            Simulasi Pengingat Aktif
+          </div>
         </div>
       </div>
 

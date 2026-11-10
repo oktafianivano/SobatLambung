@@ -67,6 +67,10 @@ Buat file `.env` di dalam folder `backend` dan isi dengan konfigurasi berikut:
 # Database Configuration (Supabase)
 DATABASE_URL=postgresql://[user]:[password]@[host]:[port]/[db_name]
 
+# WhatsApp Notification (Fonnte)
+FONNTE_TOKEN=[token_anda_dari_fonnte]
+FONNTE_API_URL=https://api.fonnte.com/send
+
 # Security
 SECRET_KEY=buat_secret_key_yang_panjang_dan_acak_disini
 ALGORITHM=HS256
@@ -106,6 +110,14 @@ Aplikasi ini dilengkapi dengan fitur Admin Tools untuk tim IT agar dapat mengelo
   - `GET /api/admin/list`: Melihat daftar semua user.
   - `PUT /api/admin/update/{user_id}`: Mengubah data user.
   - `DELETE /api/admin/delete/{user_id}`: Menghapus user.
+
+### 6. Troubleshooting WhatsApp (Fonnte)
+Jika pengingat WhatsApp tidak terkirim atau status di dasbor Fonnte menunjukkan `pending`, lakukan langkah berikut:
+1. **Cek Koneksi Perangkat**: Pastikan status perangkat di dasbor Fonnte **Connected**.
+2. **Re-scan QR**: Jika koneksi bermasalah, lakukan `Disconnect` lalu *scan* ulang QR code hingga perangkat tertaut kembali dengan benar.
+3. **Resend Pesan**: Klik tombol `Resend` pada log pengiriman di dasbor Fonnte untuk memaksa sistem mengirim ulang pesan yang sempat tertunda.
+4. **Pastikan HP Aktif**: Pastikan HP yang digunakan untuk *scan* QR terhubung ke internet dan aplikasi WhatsApp tidak dalam mode tidur.
+
 ```
 SobatLambung/
 ├── backend/                # API FastAPI (Python)

@@ -50,8 +50,28 @@ export const KeychainPreview: React.FC<KeychainPreviewProps> = ({ onScanSuccess 
             </p>
             <button
               onClick={() => {
-                navigator.clipboard.writeText(window.location.origin);
-                alert("Link berhasil disalin!");
+                const url = "https://sobatlambung.id";
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                  navigator.clipboard.writeText(url).then(() => {
+                    alert("Link berhasil disalin ke clipboard!");
+                  }).catch(err => {
+                    console.error('Gagal menyalin:', err);
+                    alert("Gagal menyalin. Silakan salin manual: " + url);
+                  });
+                } else {
+                  // Fallback for older browsers
+                  const textArea = document.createElement("textarea");
+                  textArea.value = url;
+                  document.body.appendChild(textArea);
+                  textArea.select();
+                  try {
+                    document.execCommand('copy');
+                    alert("Link berhasil disalin (fallback mode)!");
+                  } catch (err) {
+                    alert("Gagal menyalin. Silakan salin manual: " + url);
+                  }
+                  document.body.removeChild(textArea);
+                }
               }}
               className="mt-2 text-xs font-semibold text-emerald-700 hover:underline cursor-pointer"
             >
