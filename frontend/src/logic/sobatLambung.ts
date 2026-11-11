@@ -17,8 +17,8 @@ export interface ScheduleItem {
 export const STATIC_SCHEDULES: ScheduleItem[] = [
   {
     id: 'breakfast',
-    time: '06:30 WIB',
-    hour: 6,
+    time: '07:30 WIB',
+    hour: 7,
     minute: 30,
     label: 'Sarapan Pagi Ramah Lambung',
     shortDesc: 'Menetralkan lonjakan asam lambung setelah puasa malam.',

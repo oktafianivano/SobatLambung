@@ -7,7 +7,7 @@ Sobat Lambung adalah aplikasi web edukasi seputar Gastritis dan GERD, dilengkapi
 - **Edukasi & Informasi**: Artikel dan panduan seputar kesehatan lambung, Gastritis, dan GERD.
 - **Sistem Autentikasi (JWT)**: Registrasi dan Login pengguna yang aman.
 - **Dashboard Pengguna**: Manajemen profil dan pengaturan pengingat.
-- **Pengingat Makan Otomatis**: Notifikasi WhatsApp yang dikirimkan 3x sehari (06:30, 12:00, 18:30 WIB) menggunakan APScheduler.
+- **Pengingat Makan Otomatis**: Notifikasi WhatsApp yang dikirimkan 3x sehari (07:30, 12:00, 18:30 WIB) menggunakan APScheduler.
 
 ## 🛠️ Teknologi yang Digunakan
 
@@ -182,28 +182,35 @@ Catatan:
 - Di mode `APP_ENV=development` aplikasi masih menjalankan `create_all` agar praktis saat ngoding. Di `APP_ENV=production` pembuatan tabel dilewati — jalankan `alembic upgrade head` (sudah otomatis di Dockerfile).
 - Selalu review file migrasi hasil `--autogenerate` sebelum commit.
 
-### 9. Menjalankan dengan Docker
-Prasyarat: **Docker Desktop** dengan Docker Compose v2.
+### 9. Cara Mengubah Jadwal Pengingat
+Jika ingin mengganti jadwal pengingat (misal: sarapan jadi jam 06:30), Anda perlu mengubahnya di beberapa tempat agar konsisten. Berikut langkah-langkahnya:
 
-```bash
-# 1. Pastikan backend/.env sudah berisi DATABASE_URL, SECRET_KEY, FONNTE_TOKEN, dll.
-# 2. Bangun & jalankan seluruh layanan
-docker compose up --build -d
+1. **Backend (Logika Cron Job)**
+   Buka `backend/app/scheduler.py`, cari `CronTrigger` untuk `breakfast`, `lunch`, atau `dinner`. Ubah `hour` dan `minute`-nya:
+   ```python
+   # Contoh: ubah sarapan ke 06:30
+   scheduler.add_job(..., CronTrigger(hour=6, minute=30), args=["breakfast"], ...)
+   ```
 
-# 3. Cek status
-docker compose ps
-curl http://localhost:8000/health
-```
+2. **Backend (Endpoint API)**
+   Buka `backend/app/api/endpoints/public.py` dan perbarui jam di `get_static_schedules` agar frontend menerima data yang akurat:
+   ```python
+   {"id": "breakfast", "time": "06:30 WIB", ...}
+   ```
 
-- Frontend: `http://localhost:3000`
-- Backend: `http://localhost:8000` (docs di `/docs`)
-- Migrasi database dijalankan otomatis saat container backend start (`alembic upgrade head`).
-- Ubah alamat API yang ditanam ke frontend saat build:
-  ```bash
-  # PowerShell
-  $env:VITE_API_URL="http://192.168.18.28:8000"; docker compose up --build -d
-  ```
-- Hentikan: `docker compose down`
+3. **Frontend (Logika Bisnis)**
+   Buka `frontend/src/logic/sobatLambung.ts`. Ubah `hour` dan `minute` pada `STATIC_SCHEDULES`:
+   ```typescript
+   { id: 'breakfast', time: '06:30 WIB', hour: 6, minute: 30, ... }
+   ```
+
+4. **Frontend (Test)**
+   Buka `frontend/src/logic/sobatLambung.test.ts` dan sesuaikan ekspektasi waktu pada unit test agar tes tetap *pass*.
+
+5. **Frontend (UI Mockup)**
+   Jika perlu, perbarui juga `frontend/src/components/WhatsAppPhoneMockup.tsx` pada bagian `time: '06:30'`.
+
+*Catatan: Setelah mengubah file-file di atas, jangan lupa restart backend (uvicorn) dan pastikan UI frontend juga mencerminkan perubahan tersebut.*
 
 ```
 SobatLambung/

@@ -21,10 +21,7 @@ class Settings(BaseSettings):
     ADMIN_API_KEY: str = "sobatlambung_it_2026"
 
     # CORS (dipisah koma)
-    CORS_ORIGINS: str = (
-        "http://localhost:3000,http://127.0.0.1:3000,"
-        "http://192.168.18.28:3000,http://172.19.28.21:3000"
-    )
+    CORS_ORIGINS: str = ("*")
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

@@ -17,7 +17,7 @@ if settings.APP_ENV.lower() != "production":
 async def lifespan(app: FastAPI):
     scheduler = init_scheduler()
     scheduler.start()
-    print("[INFO] APScheduler Sobat Lambung aktif (Jadwal: 06:30, 12:00, 18:30 WIB)")
+    print("[INFO] APScheduler Sobat Lambung aktif (Jadwal: 07:30, 12:00, 18:30 WIB)")
     yield
     scheduler.shutdown()
     print("[INFO] APScheduler dimatikan")
@@ -31,7 +31,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

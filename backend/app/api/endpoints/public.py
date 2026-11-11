@@ -40,7 +40,7 @@ def get_education_content():
 @router.get("/schedules")
 def get_static_schedules():
     return [
-        {"id": "breakfast", "time": "06:30 WIB", "label": "Sarapan Sehat", "description": "Menetralkan asam lambung pagi hari."},
+        {"id": "breakfast", "time": "07:30 WIB", "label": "Sarapan Sehat", "description": "Menetralkan asam lambung pagi hari."},
         {"id": "lunch", "time": "12:00 WIB", "label": "Makan Siang Teratur", "description": "Mengisi energi dan istirahat kuliah."},
         {"id": "dinner", "time": "18:30 WIB", "label": "Makan Malam Tepat Waktu", "description": "Memberi jeda aman sebelum tidur malam."}
     ]

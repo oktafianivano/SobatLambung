@@ -185,7 +185,7 @@ logger = logging.getLogger("sobat_lambung_scheduler")
 
 MEAL_TEMPLATES = {
     "breakfast": {
-        "title": "🌅 Waktunya Sarapan Sehat (06:30 WIB)",
+        "title": "🌅 Waktunya Sarapan Sehat (07:30 WIB)",
         "menu": ["Bubur ayam kuah gurih ringan", "Oatmeal pisang & madu", "Roti gandum + telur rebus"],
         "advice": "Asam lambung pagi hari wajib dinetralisir sarapan rendah asam."
     },
