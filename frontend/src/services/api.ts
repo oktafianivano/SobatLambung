@@ -15,3 +15,10 @@ export function apiUrl(path: string): string {
   const normalized = path.startsWith('/') ? path : `/${path}`;
   return `${API_URL}${API_PREFIX}${normalized}`;
 }
+
+/** Header JSON standar, opsional dengan Bearer token. */
+export function jsonHeaders(token?: string | null): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+}

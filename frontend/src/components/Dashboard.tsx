@@ -1,4 +1,4 @@
-import { apiUrl } from '../services/api';
+import { apiUrl, jsonHeaders } from '../services/api';
 import React, { useState } from 'react';
 import { UserProfile } from '../types';
 import { STATIC_SCHEDULES } from '../logic/sobatLambung';
@@ -54,24 +54,54 @@ export const Dashboard: React.FC<DashboardProps> = ({
     }
   };
 
-  const handleToggleAlarm = () => {
-    setIsUpdating(true);
+  const handleToggleAlarm = async () => {
     const newStatus = !currentUser.is_alarm_active;
 
-    // Simulate backend PUT /api/user/toggle-alarm
-    setTimeout(() => {
-      setIsUpdating(false);
-      onUpdateUser({
-        ...currentUser,
-        is_alarm_active: newStatus,
-      });
+    // Akun demo (tanpa JWT asli) tidak punya baris di database,
+    // jadi perubahan hanya berlaku di tampilan.
+    if (!currentUser.token || currentUser.token.startsWith('jwt_demo_token_')) {
+      onUpdateUser({ ...currentUser, is_alarm_active: newStatus });
       setToggleFeedback(
         newStatus
-          ? 'Layanan pengingat WhatsApp diaktifkan! Server Cron Job akan mengirim pesan setiap jam makan.'
+          ? 'Mode demo: pengingat ditandai aktif (tidak tersimpan ke server).'
+          : 'Mode demo: pengingat ditandai nonaktif (tidak tersimpan ke server).'
+      );
+      setTimeout(() => setToggleFeedback(null), 4000);
+      return;
+    }
+
+    setIsUpdating(true);
+    setToggleFeedback(null);
+
+    try {
+      const response = await fetch(apiUrl('/user/toggle-alarm'), {
+        method: 'PUT',
+        headers: jsonHeaders(currentUser.token),
+        body: JSON.stringify({ is_alarm_active: newStatus }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || 'Gagal memperbarui status pengingat.');
+      }
+
+      // Server adalah sumber kebenaran: pakai nilai yang dikembalikan.
+      onUpdateUser({
+        ...currentUser,
+        ...data,
+        token: currentUser.token,
+      });
+
+      setToggleFeedback(
+        data.is_alarm_active
+          ? 'Layanan pengingat WhatsApp diaktifkan! Server akan mengirim pesan setiap jam makan.'
           : 'Layanan pengingat dinonaktifkan. Anda tidak akan menerima pesan broadcast sampai diaktifkan kembali.'
       );
-      setTimeout(() => setToggleFeedback(null), 3500);
-    }, 300);
+    } catch (err: any) {
+      setToggleFeedback(`❌ Gagal mengubah pengingat: ${err.message}`);
+    } finally {
+      setIsUpdating(false);
+      setTimeout(() => setToggleFeedback(null), 4000);
+    }
   };
 
   return (

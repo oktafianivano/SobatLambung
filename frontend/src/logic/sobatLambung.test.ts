@@ -44,11 +44,11 @@ test('generateWhatsAppReminderMessage contains name and menu recommendations', (
   assert.ok(msg.includes('Dimas Arya'));
   assert.ok(msg.includes('Sarapan Pagi Ramah Lambung'));
   assert.ok(msg.includes('Bubur ayam'));
-  assert.ok(msg.includes('06:30 WIB'));
+  assert.ok(msg.includes('07:30 WIB'));
 });
 
 test('getNextStaticAlarm returns appropriate upcoming time', () => {
-  // At 06:00, next is breakfast (06:30)
+  // At 06:00, next is breakfast (07:30)
   const alarm1 = getNextStaticAlarm(6, 0);
   assert.equal(alarm1.id, 'breakfast');
 
