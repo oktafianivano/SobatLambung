@@ -114,16 +114,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <ShieldCheck className="w-3.5 h-3.5" />
               <span>Dasbor Privat Mahasiswa Terverifikasi</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white break-words">
               Halo, {currentUser.nama}! 👋
             </h1>
-            <p className="text-emerald-100/80 text-xs sm:text-sm mt-1">
+            <p className="text-emerald-100/80 text-xs sm:text-sm mt-1 break-all">
               Nomor WhatsApp Terhubung: <span className="font-mono font-bold text-white">+{currentUser.no_wa}</span>
             </p>
           </div>
 
           {/* Big Interactive Toggle Switch */}
-          <div className="bg-white/10 backdrop-blur-md border border-white/20 p-4 sm:p-5 rounded-2xl flex flex-col gap-4 min-w-70">
+          <div className="w-full md:w-auto md:min-w-70 bg-white/10 backdrop-blur-md border border-white/20 p-4 sm:p-5 rounded-2xl flex flex-col gap-4">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-xs font-bold text-white uppercase tracking-wider">

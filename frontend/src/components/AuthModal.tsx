@@ -199,38 +199,40 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const isForgot = mode === 'forgot';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-      <div className="relative w-full max-w-md bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-100">
-        {/* Close Button */}
-        <button
-          onClick={onClose}
-          className="absolute right-5 top-5 p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"
-        >
-          <X className="w-5 h-5" />
-        </button>
+    <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-slate-900/60 backdrop-blur-xs">
+      <div className="flex min-h-full items-center justify-center p-3 sm:p-4">
+        <div className="relative my-4 w-full max-w-md bg-white rounded-3xl p-5 sm:p-8 shadow-2xl border border-slate-100">
+          {/* Close Button */}
+          <button
+            onClick={onClose}
+            aria-label="Tutup"
+            className="absolute right-4 sm:right-5 top-4 sm:top-5 p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
 
-        {/* Modal Header */}
-        <div className="mb-6">
-          <div className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-full mb-2">
-            {mode === 'login' && 'Autentikasi Mahasiswa'}
-            {mode === 'register' && 'Pendaftaran Akun Baru'}
-            {isForgot && (forgotStep === 'request' ? 'Lupa Kata Sandi' : 'Verifikasi Kode OTP')}
+          {/* Modal Header */}
+          <div className="mb-5 sm:mb-6 pr-8">
+            <div className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-full mb-2">
+              {mode === 'login' && 'Autentikasi Mahasiswa'}
+              {mode === 'register' && 'Pendaftaran Akun Baru'}
+              {isForgot && (forgotStep === 'request' ? 'Lupa Kata Sandi' : 'Verifikasi Kode OTP')}
+            </div>
+            <h3 className="text-xl sm:text-2xl font-bold text-slate-900">
+              {mode === 'login' && 'Masuk ke Dasbor Sobat Lambung'}
+              {mode === 'register' && 'Daftar Akun Sobat Lambung'}
+              {isForgot && forgotStep === 'request' && 'Lupa Kata Sandi Anda?'}
+              {isForgot && forgotStep === 'reset' && 'Masukkan Kode OTP & Kata Sandi Baru'}
+            </h3>
+            <p className="text-xs text-slate-500 mt-1">
+              {mode === 'login' && 'Masukkan nomor WhatsApp dan kata sandi Anda.'}
+              {mode === 'register' && 'Aktifkan pengingat jam makan harian via pesan WhatsApp.'}
+              {isForgot && forgotStep === 'request' &&
+                'Masukkan nomor WhatsApp terdaftar. Kami akan mengirim kode OTP 6 digit melalui WhatsApp.'}
+              {isForgot && forgotStep === 'reset' &&
+                `Kode berlaku 10 menit dan hanya dapat dipakai sekali.`}
+            </p>
           </div>
-          <h3 className="text-2xl font-bold text-slate-900">
-            {mode === 'login' && 'Masuk ke Dasbor Sobat Lambung'}
-            {mode === 'register' && 'Daftar Akun Sobat Lambung'}
-            {isForgot && forgotStep === 'request' && 'Lupa Kata Sandi Anda?'}
-            {isForgot && forgotStep === 'reset' && 'Masukkan Kode OTP & Kata Sandi Baru'}
-          </h3>
-          <p className="text-xs text-slate-500 mt-1">
-            {mode === 'login' && 'Masukkan nomor WhatsApp dan kata sandi Anda.'}
-            {mode === 'register' && 'Aktifkan pengingat jam makan harian via pesan WhatsApp.'}
-            {isForgot && forgotStep === 'request' &&
-              'Masukkan nomor WhatsApp terdaftar. Kami akan mengirim kode OTP 6 digit melalui WhatsApp.'}
-            {isForgot && forgotStep === 'reset' &&
-              `Kode berlaku 10 menit dan hanya dapat dipakai sekali.`}
-          </p>
-        </div>
 
         {errorMessage && (
           <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 flex items-center gap-2">
@@ -491,6 +493,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <p className="text-[10px] text-slate-500">Alarm WA OFF</p>
             </button>
           </div>
+        </div>
         </div>
       </div>
     </div>

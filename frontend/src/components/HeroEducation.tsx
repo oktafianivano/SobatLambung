@@ -36,7 +36,7 @@ export const HeroEducation: React.FC<HeroEducationProps> = ({
             <span>Inovasi Pendamping Kesehatan Mahasiswa</span>
           </div>
 
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-tight text-white mb-4">
+          <h1 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-tight text-white mb-4">
             Lindungi Lambung Mahasiswa, Kuliah Bebas Maag & GERD.
           </h1>
 

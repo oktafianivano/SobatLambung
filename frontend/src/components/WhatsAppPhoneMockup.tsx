@@ -87,29 +87,29 @@ export const WhatsAppPhoneMockup: React.FC<WhatsAppPhoneMockupProps> = ({
       </div>
 
       {/* Phone Screen Mockup */}
-      <div className="max-w-md mx-auto bg-slate-900 rounded-[2.5rem] p-3 shadow-2xl border-4 border-slate-800">
+      <div className="w-full max-w-md mx-auto bg-slate-900 rounded-[2rem] sm:rounded-[2.5rem] p-2 sm:p-3 shadow-2xl border-4 border-slate-800">
         {/* Phone Notch / Speaker */}
-        <div className="w-36 h-4 bg-slate-800 mx-auto rounded-b-xl mb-2 flex items-center justify-center">
+        <div className="w-28 sm:w-36 h-4 bg-slate-800 mx-auto rounded-b-xl mb-2 flex items-center justify-center">
           <div className="w-8 h-1 bg-slate-700 rounded-full"></div>
         </div>
 
         {/* WhatsApp App Container */}
-        <div className="bg-[#efeae2] rounded-4xl overflow-hidden min-h-115 max-h-130 flex flex-col">
+        <div className="bg-[#efeae2] rounded-3xl sm:rounded-4xl overflow-hidden min-h-95 sm:min-h-115 sm:max-h-130 flex flex-col">
           {/* WhatsApp Header */}
-          <div className="bg-[#008069] text-white px-4 py-3 flex items-center justify-between shadow-sm">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-sm shadow-xs">
+          <div className="bg-[#008069] text-white px-3 sm:px-4 py-3 flex items-center justify-between gap-2 shadow-sm">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <div className="w-9 h-9 shrink-0 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-sm shadow-xs">
                 🥣
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <p className="font-bold text-sm leading-tight text-white">Sobat Lambung</p>
-                  <span className="text-[9px] bg-emerald-700 px-1.5 py-0.2 rounded-full font-semibold">Resmi</span>
+                  <p className="font-bold text-sm leading-tight text-white truncate">Sobat Lambung</p>
+                  <span className="shrink-0 text-[9px] bg-emerald-700 px-1.5 py-0.2 rounded-full font-semibold">Resmi</span>
                 </div>
-                <p className="text-[10px] text-emerald-100">Akun Pengingat Kesehatan Mahasiswa</p>
+                <p className="text-[10px] text-emerald-100 truncate">Akun Pengingat Kesehatan Mahasiswa</p>
               </div>
             </div>
-            <div className="text-[10px] font-mono text-emerald-200 bg-[#006e5a] px-2 py-0.5 rounded">
+            <div className="hidden sm:block shrink-0 text-[10px] font-mono text-emerald-200 bg-[#006e5a] px-2 py-0.5 rounded">
               Fonnte API
             </div>
           </div>

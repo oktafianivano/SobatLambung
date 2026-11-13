@@ -40,7 +40,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800 antialiased selection:bg-emerald-500 selection:text-white">
+    <div className="min-h-dvh bg-slate-50 flex flex-col font-sans text-slate-800 antialiased overflow-x-clip selection:bg-emerald-500 selection:text-white">
       <Navbar
         currentUser={currentUser}
         activeTab={activeTab}
@@ -63,7 +63,7 @@ export default function App() {
                 <span className="text-xs uppercase font-bold tracking-wider px-2.5 py-1 rounded bg-white/20 text-emerald-200">Nutrisi Mahasiswa</span>
                 <h3 className="text-xl sm:text-2xl font-bold mt-2">Bingung Pilih Makanan yang Tidak Memicu Maag & GERD?</h3>
               </div>
-              <button onClick={() => setActiveTab('food')} className="px-5 py-3 rounded-xl bg-white text-emerald-950 font-bold text-xs sm:text-sm shadow-md hover:bg-emerald-50 transition-colors shrink-0 flex items-center gap-2 cursor-pointer">
+              <button onClick={() => setActiveTab('food')} className="w-full sm:w-auto justify-center px-5 py-3 rounded-xl bg-white text-emerald-950 font-bold text-xs sm:text-sm shadow-md hover:bg-emerald-50 transition-colors shrink-0 flex items-center gap-2 cursor-pointer">
                 <Utensils className="w-4 h-4 text-emerald-700" /> Lihat Panduan Makanan <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -75,7 +75,7 @@ export default function App() {
                   <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-2xl">Bagikan fitur Sobat Lambung ke teman-temanmu agar mereka juga bisa menjaga kesehatan lambung di masa kuliah.</p>
                 </div>
               </div>
-              <button onClick={() => setActiveTab('share')} className="px-5 py-2.5 rounded-xl border border-slate-300 hover:border-slate-400 text-slate-800 font-semibold text-xs sm:text-sm bg-slate-50 transition-colors shrink-0 cursor-pointer flex items-center gap-2">
+              <button onClick={() => setActiveTab('share')} className="w-full sm:w-auto justify-center px-5 py-2.5 rounded-xl border border-slate-300 hover:border-slate-400 text-slate-800 font-semibold text-xs sm:text-sm bg-slate-50 transition-colors shrink-0 cursor-pointer flex items-center gap-2">
                 Bagikan ke Teman <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -90,10 +90,10 @@ export default function App() {
             {currentUser ? (
               <Dashboard currentUser={currentUser} onUpdateUser={setCurrentUser} onOpenAuth={handleOpenAuth} />
             ) : (
-              <div className="relative min-h-150 rounded-3xl overflow-hidden border border-slate-200">
+              <div className="relative min-h-105 sm:min-h-150 rounded-3xl overflow-hidden border border-slate-200">
                 {/* 1. Background Blurred Preview - Rendering real dashboard layout */}
                 <div className="absolute inset-0 blur-sm opacity-30 select-none pointer-events-none grayscale-50">
-                  <div className="p-6 space-y-6">
+                  <div className="p-4 sm:p-6 space-y-6">
                     <div className="h-24 bg-emerald-800 rounded-2xl w-full" />
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       {[1, 2, 3].map((i) => (
@@ -105,25 +105,25 @@ export default function App() {
                 </div>
 
                 {/* 2. Floating Glassmorphism Card Overlay */}
-                <div className="absolute inset-0 z-10 flex items-center justify-center p-6">
-                  <div className="bg-white/80 backdrop-blur-md p-10 rounded-3xl border border-white/50 shadow-2xl text-center max-w-lg w-full">
-                    <div className="w-20 h-20 rounded-3xl bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto mb-6">
-                      <Lock className="w-10 h-10" />
+                <div className="absolute inset-0 z-10 flex items-center justify-center p-3 sm:p-6">
+                  <div className="bg-white/85 backdrop-blur-md p-5 sm:p-10 rounded-3xl border border-white/50 shadow-2xl text-center max-w-lg w-full">
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-3xl bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto mb-4 sm:mb-6">
+                      <Lock className="w-8 h-8 sm:w-10 sm:h-10" />
                     </div>
-                    <h2 className="text-3xl font-extrabold text-slate-900 mb-4">Dasbor Terkunci</h2>
-                    <p className="text-slate-600 mb-8 text-lg">
+                    <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mb-2 sm:mb-4">Dasbor Terkunci</h2>
+                    <p className="text-sm sm:text-lg text-slate-600 mb-5 sm:mb-8">
                       Masuk atau daftar untuk membuka fitur pengingat makan WhatsApp otomatis dan pantau kesehatan lambungmu.
                     </p>
-                    <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                    <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-4 justify-center">
                       <button
                         onClick={() => handleOpenAuth('login')}
-                        className="px-10 py-4 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm transition-all shadow-lg"
+                        className="px-6 sm:px-10 py-3 sm:py-4 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm transition-all shadow-lg"
                       >
                         Masuk
                       </button>
                       <button
                         onClick={() => handleOpenAuth('register')}
-                        className="px-10 py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm transition-all shadow-lg"
+                        className="px-6 sm:px-10 py-3 sm:py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm transition-all shadow-lg"
                       >
                         Daftar Sekarang
                       </button>
@@ -158,7 +158,7 @@ export default function App() {
       <footer className="mt-auto bg-slate-900 text-slate-400 border-t border-slate-800 py-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-6">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center"><HeartPulse className="w-4 h-4" /></div>
               <span className="font-bold text-white text-base">Sobat Lambung</span>
               <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded">Solusi Kesehatan Mahasiswa</span>

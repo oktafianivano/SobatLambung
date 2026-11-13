@@ -186,8 +186,8 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
               <Settings2 className="w-3.5 h-3.5" />
               <span>Pengaturan Akun</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold">{currentUser.nama}</h1>
-            <p className="text-emerald-100/80 text-xs sm:text-sm mt-1">
+            <h1 className="text-2xl sm:text-3xl font-extrabold break-words">{currentUser.nama}</h1>
+            <p className="text-emerald-100/80 text-xs sm:text-sm mt-1 break-all">
               Nomor WhatsApp Terhubung: <span className="font-mono font-bold text-white">+{currentUser.no_wa}</span>
             </p>
           </div>

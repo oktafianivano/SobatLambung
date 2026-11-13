@@ -212,6 +212,26 @@ Jika ingin mengganti jadwal pengingat (misal: sarapan jadi jam 06:30), Anda perl
 
 *Catatan: Setelah mengubah file-file di atas, jangan lupa restart backend (uvicorn) dan pastikan UI frontend juga mencerminkan perubahan tersebut.*
 
+### 10. Tampilan di HP (Responsif)
+UI memakai **Tailwind CSS** dengan pendekatan *mobile-first*, jadi satu kode yang sama dipakai di semua ukuran layar (tidak ada layout terpisah untuk HP). Titik henti (*breakpoint*) yang dipakai:
+
+| Prefix | Lebar layar | Perilaku |
+| --- | --- | --- |
+| *(tanpa prefix)* | 0 – 639px | Layout HP: menu tab bisa digeser, tombol penuh, kartu menumpuk |
+| `sm:` | ≥ 640px | Tablet kecil: dua kolom, teks lebih besar |
+| `md:` | ≥ 768px | Menu navigasi desktop muncul, grid 3 kolom |
+| `lg:` | ≥ 1024px | Grid 12 kolom (halaman Bagikan) & padding lebar |
+
+Beberapa hal yang sudah dijaga agar aman di HP:
+
+- **Tidak ada scroll horizontal.** `body` memakai `overflow-x: clip` dan setiap baris memakai `flex-wrap` atau `min-w-0`.
+- **Modal login/daftar bisa di-scroll.** Saat keyboard HP muncul, tombol "Masuk" tetap bisa dijangkau (`overflow-y-auto` + `min-h-full`).
+- **Strip menu HP otomatis menggeser** ke tab yang sedang aktif (`Navbar.tsx`, `useEffect` + `scrollTo`).
+- **Tinggi halaman memakai `min-h-dvh`** agar tidak terpotong oleh address bar browser HP.
+- **Kartu dasbor alarm memakai `w-full md:min-w-70`**, jadi tidak melebar keluar layar di HP 320px.
+
+Cara cepat memeriksa: buka aplikasi di Chrome → tekan `F12` → klik ikon **Toggle device toolbar** (`Ctrl + Shift + M`) → pilih **iPhone SE (375px)** atau **Galaxy S8 (360px)**. Kalau tidak ada scroll ke samping dan semua tombol bisa diklik, tampilan sudah aman.
+
 ```
 SobatLambung/
 ├── .github/workflows/         # CI (GitHub Actions)

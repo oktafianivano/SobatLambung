@@ -24,7 +24,7 @@ export const KeychainPreview: React.FC<KeychainPreviewProps> = ({ onScanSuccess 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
         {/* Visual of the Share QR */}
         <div className="lg:col-span-5 flex flex-col items-center">
-          <div className="w-72 bg-white rounded-3xl p-8 shadow-xl border border-slate-200 flex flex-col items-center text-center">
+          <div className="w-full max-w-72 bg-white rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-200 flex flex-col items-center text-center">
             <h3 className="font-bold text-slate-900 mb-4">Scan untuk Berbagi</h3>
             
             {/* QR Code Graphic */}
