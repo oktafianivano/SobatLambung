@@ -114,7 +114,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <ShieldCheck className="w-3.5 h-3.5" />
               <span>Dasbor Privat Mahasiswa Terverifikasi</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white break-words">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white wrap-break-words">
               Halo, {currentUser.nama}! 👋
             </h1>
             <p className="text-emerald-100/80 text-xs sm:text-sm mt-1 break-all">
