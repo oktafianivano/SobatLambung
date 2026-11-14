@@ -50,7 +50,7 @@ export const KeychainPreview: React.FC<KeychainPreviewProps> = ({ onScanSuccess 
             </p>
             <button
               onClick={() => {
-                const url = "https://sobatlambung.id";
+                const url = "http://192.168.18.28:3000/";
                 if (navigator.clipboard && navigator.clipboard.writeText) {
                   navigator.clipboard.writeText(url).then(() => {
                     alert("Link berhasil disalin ke clipboard!");
