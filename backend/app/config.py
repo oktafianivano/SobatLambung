@@ -8,7 +8,11 @@ class Settings(BaseSettings):
     # Security / JWT
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
+    # 12 jam: cukup untuk satu hari pameran, tapi sesi tidak hidup selamanya.
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 720
+
+    # Rate limiting (slowapi). Bisa dimatikan saat load-test lokal.
+    RATE_LIMIT_ENABLED: bool = True
 
     # Database
     DATABASE_URL: str

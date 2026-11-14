@@ -72,11 +72,16 @@ FONNTE_TOKEN=[token_anda_dari_fonnte]
 FONNTE_API_URL=https://api.fonnte.com/send
 
 # Security
+# SECRET_KEY minimal 32 karakter acak:
+#   python -c "import secrets; print(secrets.token_urlsafe(48))"
 SECRET_KEY=buat_secret_key_yang_panjang_dan_acak_disini
 ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=1440
+# 720 menit = 12 jam (cukup untuk sehari pameran)
+ACCESS_TOKEN_EXPIRE_MINUTES=720
+# Rate limiting per IP; set false hanya saat load-test lokal
+RATE_LIMIT_ENABLED=true
 
-# Admin Tools
+# Admin Tools (WAJIB diganti dengan kunci acak sebelum dipakai publik)
 ADMIN_API_KEY=kunci_admin_anda
 
 # CORS (pisahkan dengan koma; sesuaikan IP LAN Anda)
@@ -119,12 +124,25 @@ npm run dev -- --host
 Aplikasi ini dilengkapi dengan fitur Admin Tools untuk tim IT agar dapat mengelola data pengguna secara langsung melalui API.
 
 - **Akses**: Tersedia melalui dokumentasi Swagger di `http://[IP-KOMPUTER-ANDA]:8000/docs` pada kategori **Admin Tools**.
-- **Kunci Keamanan**: Memerlukan header `x-admin-key` yang nilainya diambil dari variabel `ADMIN_API_KEY` di file `.env` (jangan hardcode di kode).
+- **Kunci Keamanan**: Memerlukan header `x-admin-key` yang nilainya diambil dari variabel `ADMIN_API_KEY` di file `.env` (jangan hardcode di kode). Kunci dibandingkan secara *constant-time* agar tidak bisa ditebak lewat analisis waktu.
 - **Fitur CRUD**:
-  - `POST /api/v1/admin/create`: Menambah user baru secara manual.
-  - `GET /api/v1/admin/list`: Melihat daftar semua user.
-  - `PUT /api/v1/admin/update/{user_id}`: Mengubah data user.
+  - `POST /api/v1/admin/create`: Menambah user baru secara manual. **Wajib** mengirim `nama`, `no_wa`, dan `password` (minimal 6 karakter).
+  - `GET /api/v1/admin/list`: Melihat daftar semua user. Nomor WhatsApp ditampilkan tersamarkan (`no_wa_masked`).
+  - `PUT /api/v1/admin/update/{user_id}`: Mengubah data user (`nama`, `no_wa`, `password`, `is_alarm_active` — semua opsional).
   - `DELETE /api/v1/admin/delete/{user_id}`: Menghapus user.
+  - `GET /api/v1/admin/audit-logs?limit=50`: Melihat riwayat aktivitas admin (create/update/delete) beserta waktu dan alamat IP.
+
+Contoh payload create:
+```json
+{
+  "nama": "Budi Santoso",
+  "no_wa": "081234567891",
+  "password": "rahasia123",
+  "is_alarm_active": true
+}
+```
+
+Setiap create/update/delete otomatis tercatat di tabel `audit_logs` (aktor, aksi, ID target, ringkasan perubahan, IP, waktu). Password tidak pernah ikut dicatat.
 
 ### 6. Troubleshooting WhatsApp (Fonnte)
 Jika pengingat WhatsApp tidak terkirim atau status di dasbor Fonnte menunjukkan `pending`, lakukan langkah berikut:
@@ -231,6 +249,36 @@ Beberapa hal yang sudah dijaga agar aman di HP:
 - **Kartu dasbor alarm memakai `w-full md:min-w-70`**, jadi tidak melebar keluar layar di HP 320px.
 
 Cara cepat memeriksa: buka aplikasi di Chrome → tekan `F12` → klik ikon **Toggle device toolbar** (`Ctrl + Shift + M`) → pilih **iPhone SE (375px)** atau **Galaxy S8 (360px)**. Kalau tidak ada scroll ke samping dan semua tombol bisa diklik, tampilan sudah aman.
+
+### 11. Lapisan Keamanan (Security Hardening)
+Aplikasi dilindungi berlapis tanpa membatasi CORS, sehingga tetap nyaman dipakai saat pameran di jaringan lokal yang IP-nya berubah-ubah.
+
+| # | Lapisan | Fungsi |
+| --- | --- | --- |
+| 1 | **Rate limiting (`slowapi`)** | Batasi percobaan per IP: login 10/menit, register 5/menit, minta OTP 5/menit, reset OTP 10/menit, test notifikasi 5/menit, profil 20/menit, admin 60/menit. Respons `429` berisi `detail` + header `Retry-After`. |
+| 2 | **Security headers** | `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`, `Cross-Origin-Opener-Policy`, dan `Content-Security-Policy`. CSP API sangat ketat (`default-src 'none'`); `/docs` dan `/redoc` diberi pengecualian karena Swagger memuat aset CDN. |
+| 3 | **Masking data** | `UserResponse` tidak pernah memuat `password_hash`; nomor WhatsApp disediakan dalam bentuk `no_wa_masked` (contoh `6281*****7890`). |
+| 4 | **Sanitasi input** | Nama hanya boleh huruf/angka/spasi/titik/koma/apostrof/tanda hubung; karakter `< > { } $ \`` dan kontrol ditolak. Nomor WA hanya boleh angka dan `+ - ( ) .`. OTP wajib tepat 6 angka. |
+| 5 | **Hardening JWT** | Token memuat `iat`, `nbf`, `exp`, `jti`, dan `typ=access`. Masa berlaku default **12 jam**, toleransi jam 10 detik, token bertipe lain ditolak. Ganti password membuat token lama otomatis tidak berlaku (`pwd` fingerprint). |
+| 6 | **Keamanan OTP WhatsApp** | OTP 6 digit acak, disimpan sebagai hash bcrypt, berlaku 10 menit, maksimal 5 percobaan, jeda kirim ulang 60 detik, dan respons permintaan selalu generik (tidak membocorkan apakah nomor terdaftar). |
+| 7 | **Audit log admin** | Setiap create/update/delete admin dicatat ke tabel `audit_logs` (aktor, aksi, target, ringkasan, IP, waktu). Bisa dibaca via `GET /api/v1/admin/audit-logs`. |
+| 8 | **Row Level Security (Supabase)** | RLS diaktifkan pada `users`, `password_reset_otps`, dan `audit_logs`. Role `anon`/`authenticated` Supabase tidak bisa membaca data langsung lewat REST API. Aplikasi tetap berjalan karena terkoneksi sebagai owner database. |
+
+**Catatan HSTS & HTTPS:** header `Strict-Transport-Security` hanya dikirim jika request sudah HTTPS (atau di belakang proxy/tunnel yang mengirim `X-Forwarded-Proto: https`). Saat demo LAN masih `http`, header ini otomatis tidak dikirim karena browser akan mengabaikannya. Jika ingin HTTPS asli tanpa peringatan browser, jalankan aplikasi di belakang tunnel seperti Cloudflare Tunnel atau ngrok, lalu akses URL `https://...` yang diberikan.
+
+**Menjalankan migrasi keamanan:**
+```bash
+cd backend
+alembic upgrade head   # membuat audit_logs + mengaktifkan RLS
+alembic check          # memastikan tidak ada perubahan skema yang tertinggal
+```
+
+**Menjalankan test keamanan:**
+```bash
+cd backend
+pytest tests/test_security.py -q
+```
+Test mencakup sanitasi anti-XSS, masking, JWT kedaluwarsa/dipalsukan, guard bcrypt, security headers, rate limit 429, audit CRUD admin, dan pengecekan RLS pada file migrasi.
 
 ```
 SobatLambung/

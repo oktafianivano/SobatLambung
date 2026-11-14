@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 import secrets
 from datetime import timedelta
@@ -6,6 +6,13 @@ from datetime import timedelta
 from app.database import get_db
 from app.schemas import UserRegister, UserLogin, TokenResponse, ForgotPasswordRequest, ResetPasswordRequest
 from app.auth import hash_password, verify_password, create_access_token, password_fingerprint
+from app.limiter import (
+    LOGIN_LIMIT,
+    OTP_REQUEST_LIMIT,
+    OTP_RESET_LIMIT,
+    REGISTER_LIMIT,
+    limiter,
+)
 from app.utils import clean_wa, normalize_wa, get_wa_candidates, get_utcnow_naive
 from app.scheduler import build_reset_otp_message, send_fonnte_message
 from app.crud import user as crud_user
@@ -18,7 +25,8 @@ OTP_RESEND_COOLDOWN_SECONDS = 60
 OTP_MAX_ATTEMPTS = 5
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-def register(user_data: UserRegister, db: Session = Depends(get_db)):
+@limiter.limit(REGISTER_LIMIT)
+def register(request: Request, user_data: UserRegister, db: Session = Depends(get_db)):
     cleaned_wa = normalize_wa(user_data.no_wa)
     wa_candidates = get_wa_candidates(cleaned_wa)
     
@@ -33,7 +41,8 @@ def register(user_data: UserRegister, db: Session = Depends(get_db)):
     return {"access_token": access_token, "token_type": "bearer", "user": new_user}
 
 @router.post("/login", response_model=TokenResponse)
-def login(login_data: UserLogin, db: Session = Depends(get_db)):
+@limiter.limit(LOGIN_LIMIT)
+def login(request: Request, login_data: UserLogin, db: Session = Depends(get_db)):
     wa_candidates = get_wa_candidates(clean_wa(login_data.no_wa))
     user_obj = crud_user.get_by_wa(db, wa_candidates)
     
@@ -46,7 +55,8 @@ def login(login_data: UserLogin, db: Session = Depends(get_db)):
     return {"access_token": access_token, "token_type": "bearer", "user": user_obj}
 
 @router.post("/forgot-password/request")
-async def forgot_password_request(payload: ForgotPasswordRequest, db: Session = Depends(get_db)):
+@limiter.limit(OTP_REQUEST_LIMIT)
+async def forgot_password_request(request: Request, payload: ForgotPasswordRequest, db: Session = Depends(get_db)):
     generic_response = {"success": True, "message": "Jika nomor WhatsApp terdaftar, kode OTP telah kami kirim."}
 
     user_obj = crud_user.get_by_wa(db, get_wa_candidates(clean_wa(payload.no_wa)))
@@ -68,7 +78,8 @@ async def forgot_password_request(payload: ForgotPasswordRequest, db: Session = 
     return generic_response
 
 @router.post("/forgot-password/reset")
-def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
+@limiter.limit(OTP_RESET_LIMIT)
+def reset_password(request: Request, payload: ResetPasswordRequest, db: Session = Depends(get_db)):
     invalid_detail = "Kode OTP tidak valid atau sudah kedaluwarsa. Silakan minta kode baru."
 
     user_obj = crud_user.get_by_wa(db, get_wa_candidates(clean_wa(payload.no_wa)))

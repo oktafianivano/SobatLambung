@@ -1,12 +1,24 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 import hashlib
+import secrets
 import jwt
 import bcrypt
 from app.config import settings
 
+# Batas keras bcrypt 5.x: password > 72 byte melempar ValueError.
+BCRYPT_MAX_PASSWORD_BYTES = 72
+
+TOKEN_TYPE_ACCESS = "access"
+# Toleransi selisih jam antara server dan perangkat user.
+CLOCK_SKEW_LEEWAY = timedelta(seconds=10)
+
 
 def hash_password(password: str) -> str:
+    if len(password.encode("utf-8")) > BCRYPT_MAX_PASSWORD_BYTES:
+        raise ValueError(
+            f"Kata sandi maksimal {BCRYPT_MAX_PASSWORD_BYTES} byte."
+        )
     salt = bcrypt.gensalt()
     hashed = bcrypt.hashpw(password.encode("utf-8"), salt)
     return hashed.decode("utf-8")
@@ -24,19 +36,54 @@ def password_fingerprint(hashed_password: str) -> str:
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    to_encode = data.copy()
+    """Buat JWT dengan klaim keamanan lengkap.
+
+    - ``iat``/``nbf``: waktu terbit & mulai berlaku.
+    - ``exp``: kedaluwarsa (default dari settings, 12 jam).
+    - ``jti``: ID unik token (memudahkan audit/revoke di masa depan).
+    - ``typ``: penanda bahwa token ini access token, bukan token lain.
+    """
+    now = datetime.now(timezone.utc)
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = now + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
-    return encoded_jwt
+        expire = now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+
+    to_encode = data.copy()
+    to_encode.update(
+        {
+            "iat": now,
+            "nbf": now,
+            "exp": expire,
+            "jti": secrets.token_urlsafe(16),
+            "typ": TOKEN_TYPE_ACCESS,
+        }
+    )
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
 def decode_access_token(token: str) -> Optional[dict]:
+    """Validasi tanda tangan, masa berlaku, dan tipe token.
+
+    Token lama (sebelum hardening) tetap diterima selama punya ``exp`` dan
+    ``sub``; token baru wajib bertipe ``access``.
+    """
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        return payload
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+            options={"require": ["exp", "sub"], "verify_signature": True},
+            leeway=CLOCK_SKEW_LEEWAY,
+        )
     except jwt.PyJWTError:
         return None
+
+    token_type = payload.get("typ")
+    if token_type is not None and token_type != TOKEN_TYPE_ACCESS:
+        return None
+
+    if "sub" not in payload:
+        return None
+
+    return payload

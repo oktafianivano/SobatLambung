@@ -2,8 +2,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
+from slowapi.errors import RateLimitExceeded
+
 from app.database import engine, Base
 from app.config import settings
+from app.limiter import limiter, rate_limit_handler
+from app.middleware import SecurityHeadersMiddleware
 from app.scheduler import init_scheduler
 from app.api.router import API_V1_PREFIX, api_legacy_router, api_v1_router
 
@@ -12,6 +16,24 @@ from app.api.router import API_V1_PREFIX, api_legacy_router, api_v1_router
 # jalankan `alembic upgrade head` lebih dahulu (sudah otomatis di Dockerfile).
 if settings.APP_ENV.lower() != "production":
     Base.metadata.create_all(bind=engine)
+
+
+def _warn_insecure_settings() -> None:
+    """Ingatkan (tanpa menghentikan app) jika konfigurasi masih lemah."""
+    if len(settings.SECRET_KEY) < 32:
+        print(
+            "[SECURITY WARNING] SECRET_KEY kurang dari 32 karakter. "
+            "Gunakan nilai acak panjang, mis. `python -c \"import secrets;print(secrets.token_urlsafe(48))\"`."
+        )
+    if settings.ADMIN_API_KEY == "sobatlambung_it_2026":
+        print(
+            "[SECURITY WARNING] ADMIN_API_KEY masih memakai nilai default. "
+            "Ganti dengan kunci acak sebelum aplikasi dipakai publik."
+        )
+
+
+_warn_insecure_settings()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -29,6 +51,13 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Rate limiting (slowapi): batas per IP, tanpa perlu membatasi CORS.
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
+
+# Security headers dipasang lebih dulu, lalu CORS di lapisan terluar agar
+# header CORS tetap ada pada semua respons (termasuk error 429/4xx).
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

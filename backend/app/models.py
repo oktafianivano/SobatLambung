@@ -31,3 +31,25 @@ class PasswordResetOTP(Base):
 
     def __repr__(self):
         return f"<PasswordResetOTP(id={self.id}, user_id={self.user_id}, is_used={self.is_used})>"
+
+
+class AuditLog(Base):
+
+    __tablename__ = "audit_logs"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    actor = Column(String(100), nullable=False, default="admin")
+    action = Column(String(50), nullable=False, index=True)
+    target_type = Column(String(50), nullable=False, default="user")
+    target_id = Column(Integer, nullable=True, index=True)
+    detail = Column(String(500), nullable=True)
+    ip_address = Column(String(45), nullable=True)
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+
+    def __repr__(self):
+        return (
+            f"<AuditLog(id={self.id}, action='{self.action}', "
+            f"target={self.target_type}:{self.target_id})>"
+        )
