@@ -87,7 +87,7 @@ export const WhatsAppPhoneMockup: React.FC<WhatsAppPhoneMockupProps> = ({
       </div>
 
       {/* Phone Screen Mockup */}
-      <div className="w-full max-w-md mx-auto bg-slate-900 rounded-[2rem] sm:rounded-[2.5rem] p-2 sm:p-3 shadow-2xl border-4 border-slate-800">
+      <div className="w-full max-w-md mx-auto bg-slate-900 rounded-4xl sm:rounded-[2.5rem] p-2 sm:p-3 shadow-2xl border-4 border-slate-800">
         {/* Phone Notch / Speaker */}
         <div className="w-28 sm:w-36 h-4 bg-slate-800 mx-auto rounded-b-xl mb-2 flex items-center justify-center">
           <div className="w-8 h-1 bg-slate-700 rounded-full"></div>
