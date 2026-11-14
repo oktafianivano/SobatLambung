@@ -21,6 +21,7 @@ from sqlalchemy.pool import StaticPool
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
+from starlette.requests import Request as StarletteRequest
 
 from app import models  # noqa: F401  -> registrasi tabel ke metadata
 from app.api.router import api_v1_router
@@ -32,7 +33,7 @@ from app.auth import (
 )
 from app.config import settings
 from app.database import Base, get_db
-from app.limiter import limiter, rate_limit_handler
+from app.limiter import client_ip, limiter, rate_limit_handler
 from app.middleware import SecurityHeadersMiddleware
 from app.schemas import UserResponse
 from app.utils import (
@@ -293,6 +294,37 @@ def test_docs_csp_allows_swagger_cdn():
 # --------------------------------------------------------------------------- #
 # 5. Rate limiting
 # --------------------------------------------------------------------------- #
+def _make_request(headers=None, client=("192.168.1.10", 5000)):
+    raw_headers = [
+        (key.lower().encode(), value.encode()) for key, value in (headers or {}).items()
+    ]
+    scope = {
+        "type": "http",
+        "http_version": "1.1",
+        "method": "GET",
+        "scheme": "http",
+        "path": "/",
+        "raw_path": b"/",
+        "query_string": b"",
+        "headers": raw_headers,
+        "client": client,
+        "server": ("testserver", 80),
+    }
+    return StarletteRequest(scope)
+
+
+def test_rate_limit_key_ignores_forwarded_header_by_default(monkeypatch):
+    monkeypatch.setattr(settings, "TRUST_PROXY_HEADERS", False)
+    request = _make_request({"x-forwarded-for": "203.0.113.9"})
+    assert client_ip(request) == "192.168.1.10"
+
+
+def test_rate_limit_key_uses_forwarded_header_when_trusted(monkeypatch):
+    monkeypatch.setattr(settings, "TRUST_PROXY_HEADERS", True)
+    request = _make_request({"x-forwarded-for": "203.0.113.9, 10.0.0.1"})
+    assert client_ip(request) == "203.0.113.9"
+
+
 def test_rate_limit_returns_429_with_detail_field():
     test_limiter = Limiter(
         key_func=get_remote_address,

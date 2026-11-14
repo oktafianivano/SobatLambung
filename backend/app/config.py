@@ -13,6 +13,11 @@ class Settings(BaseSettings):
 
     # Rate limiting (slowapi). Bisa dimatikan saat load-test lokal.
     RATE_LIMIT_ENABLED: bool = True
+    # Aktifkan hanya jika berjalan di belakang reverse proxy/tunnel
+    # (ngrok, cloudflared) agar rate limit dihitung per IP pengunjung.
+    # Jangan aktifkan saat diakses langsung lewat LAN: header X-Forwarded-For
+    # bisa dipalsukan untuk melewati rate limit.
+    TRUST_PROXY_HEADERS: bool = False
 
     # Database
     DATABASE_URL: str

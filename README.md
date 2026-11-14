@@ -266,6 +266,8 @@ Aplikasi dilindungi berlapis tanpa membatasi CORS, sehingga tetap nyaman dipakai
 
 **Catatan HSTS & HTTPS:** header `Strict-Transport-Security` hanya dikirim jika request sudah HTTPS (atau di belakang proxy/tunnel yang mengirim `X-Forwarded-Proto: https`). Saat demo LAN masih `http`, header ini otomatis tidak dikirim karena browser akan mengabaikannya. Jika ingin HTTPS asli tanpa peringatan browser, jalankan aplikasi di belakang tunnel seperti Cloudflare Tunnel atau ngrok, lalu akses URL `https://...` yang diberikan.
 
+**Catatan rate limit di belakang tunnel:** jika memakai ngrok/Cloudflare Tunnel, set `TRUST_PROXY_HEADERS=true` di `.env` supaya batas dihitung per IP pengunjung (bukan IP tunnel yang sama untuk semua orang). Saat diakses langsung lewat LAN, biarkan `false` agar header `X-Forwarded-For` tidak bisa dipalsukan untuk melewati rate limit.
+
 **Menjalankan migrasi keamanan:**
 ```bash
 cd backend
