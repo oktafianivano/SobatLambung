@@ -401,7 +401,8 @@ def test_login_profile_and_short_password(client):
         "/api/v1/auth/register",
         json={"nama": "Budi", "no_wa": "081234567891", "password": "a" * 73},
     )
-    assert too_long.status_code == 422
+    assert too_long.status_code == 400
+    assert "72 byte" in too_long.json()["detail"]
 
 
 def test_profile_requires_valid_token(client):

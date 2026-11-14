@@ -1,4 +1,5 @@
 from typing import Optional
+from fastapi import HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 from app.utils import mask_phone, sanitize_person_name, sanitize_phone_input
@@ -11,10 +12,14 @@ PASSWORD_MIN_LENGTH = 6
 
 def _validate_password(value: str, field_label: str = "Kata sandi") -> str:
     if len(value) < PASSWORD_MIN_LENGTH:
-        raise ValueError(f"{field_label} minimal {PASSWORD_MIN_LENGTH} karakter.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"{field_label} minimal {PASSWORD_MIN_LENGTH} karakter.",
+        )
     if len(value.encode("utf-8")) > PASSWORD_MAX_BYTES:
-        raise ValueError(
-            f"{field_label} terlalu panjang (maksimal {PASSWORD_MAX_BYTES} byte)."
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"{field_label} terlalu panjang (maksimal {PASSWORD_MAX_BYTES} byte).",
         )
     return value
 
