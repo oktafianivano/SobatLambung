@@ -63,11 +63,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
 
 def decode_access_token(token: str) -> Optional[dict]:
-    """Validasi tanda tangan, masa berlaku, dan tipe token.
 
-    Token lama (sebelum hardening) tetap diterima selama punya ``exp`` dan
-    ``sub``; token baru wajib bertipe ``access``.
-    """
     try:
         payload = jwt.decode(
             token,

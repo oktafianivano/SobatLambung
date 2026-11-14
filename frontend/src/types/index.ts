@@ -3,6 +3,7 @@ export interface UserProfile {
   nama: string;
   no_wa: string;
   is_alarm_active: boolean;
+  is_verified?: boolean;
   token?: string;
 }
 

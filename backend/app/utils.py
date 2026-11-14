@@ -16,6 +16,17 @@ def get_utcnow_naive() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def as_naive_utc(value: datetime) -> datetime:
+    """Samakan datetime agar aman dibandingkan di PostgreSQL maupun SQLite.
+
+    PostgreSQL mengembalikan datetime sadar-zona, sedangkan SQLite mengembalikan
+    datetime tanpa zona. Keduanya dinormalkan ke UTC tanpa tzinfo.
+    """
+    if value.tzinfo is None:
+        return value
+    return value.astimezone(timezone.utc).replace(tzinfo=None)
+
+
 def clean_wa(no_wa: str) -> str:
     return no_wa.strip().replace(" ", "").replace("-", "")
 

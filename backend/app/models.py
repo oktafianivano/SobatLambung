@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, text
 from sqlalchemy.sql import func
 from app.database import Base
 
@@ -11,6 +11,9 @@ class User(Base):
     no_wa = Column(String(20), unique=True, index=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
     is_alarm_active = Column(Boolean, default=True, nullable=False)
+    # Nomor WhatsApp harus diverifikasi lewat OTP saat pendaftaran.
+    is_verified = Column(Boolean, default=False, nullable=False, server_default=text("false"))
+    verified_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 
@@ -27,6 +30,8 @@ class PasswordResetOTP(Base):
     expires_at = Column(DateTime(timezone=True), nullable=False)
     is_used = Column(Boolean, default=False, nullable=False)
     attempts = Column(Integer, default=0, nullable=False)
+    # "reset" untuk lupa kata sandi, "verify" untuk verifikasi nomor pendaftaran.
+    purpose = Column(String(20), nullable=False, default="reset", server_default="reset")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
 
     def __repr__(self):

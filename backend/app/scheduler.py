@@ -41,6 +41,18 @@ def build_reset_otp_message(user_name: str, otp_code: str, expire_minutes: int) 
     )
 
 
+def build_verification_otp_message(user_name: str, otp_code: str, expire_minutes: int) -> str:
+    return (
+        f"Halo *{user_name}*! 👋\n"
+        f"Verifikasi nomor WhatsApp akun *Sobat Lambung* 🥣\n\n"
+        f"Kode OTP Anda:\n"
+        f"*{otp_code}*\n\n"
+        f"Kode ini berlaku selama *{expire_minutes} menit* dan hanya dapat digunakan satu kali.\n"
+        f"Jangan bagikan kode ini kepada siapa pun, termasuk pihak yang mengaku sebagai admin Sobat Lambung.\n\n"
+        f"_Jika Anda tidak merasa mendaftar di Sobat Lambung, abaikan pesan ini._"
+    )
+
+
 def build_whatsapp_message(user_name: str, meal_key: str) -> str:
     tpl = MEAL_TEMPLATES.get(meal_key, MEAL_TEMPLATES["lunch"])
     menus = "\n".join([f"  • {m}" for m in tpl["menu"]])

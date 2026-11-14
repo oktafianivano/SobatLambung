@@ -21,12 +21,6 @@ from app.config import settings
 
 
 def client_ip(request: StarletteRequest) -> str:
-    """Tentukan IP untuk kunci rate limit.
-
-    Saat di belakang tunnel/proxy (HTTPS), ``request.client.host`` akan sama
-    untuk semua pengunjung. Jika ``TRUST_PROXY_HEADERS`` aktif, pakai entri
-    pertama ``X-Forwarded-For`` agar batas tetap dihitung per perangkat.
-    """
     if settings.TRUST_PROXY_HEADERS:
         forwarded = request.headers.get("x-forwarded-for")
         if forwarded:

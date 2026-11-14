@@ -8,6 +8,7 @@ Catatan: test ini TIDAK memakai database Supabase. Dipakai SQLite in-memory
 agar cepat dan tidak butuh kredensial (aman untuk CI).
 """
 
+import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -87,11 +88,54 @@ def client():
         engine.dispose()
 
 
+@pytest.fixture()
+def outbox(monkeypatch):
+    """Tangkap pesan WhatsApp alih-alih mengirim OTP sungguhan."""
+    messages: list[dict] = []
+
+    async def fake_send_fonnte_message(target, message):
+        messages.append({"to": target, "message": message})
+        return {"status": True}
+
+    monkeypatch.setattr(
+        "app.api.endpoints.auth.send_fonnte_message", fake_send_fonnte_message
+    )
+    return messages
+
+
 def _register(client, nama="Rizky Pratama", no_wa="081234567890", password="rahasia123"):
     return client.post(
         "/api/v1/auth/register",
         json={"nama": nama, "no_wa": no_wa, "password": password},
     )
+
+
+def _last_otp(outbox):
+    assert outbox, "Tidak ada pesan WhatsApp yang terkirim."
+    match = re.search(r"\b(\d{6})\b", outbox[-1]["message"])
+    assert match, f"Kode OTP tidak ditemukan pada pesan: {outbox[-1]['message']!r}"
+    return match.group(1)
+
+
+def _verify(client, no_wa, otp):
+    return client.post(
+        "/api/v1/auth/register/verify",
+        json={"no_wa": no_wa, "otp": otp},
+    )
+
+
+def _register_and_verify(
+    client,
+    outbox,
+    nama="Rizky Pratama",
+    no_wa="081234567890",
+    password="rahasia123",
+):
+    registered = _register(client, nama=nama, no_wa=no_wa, password=password)
+    assert registered.status_code == 201, registered.text
+    verified = _verify(client, no_wa, _last_otp(outbox))
+    assert verified.status_code == 200, verified.text
+    return verified.json()
 
 
 # --------------------------------------------------------------------------- #
@@ -352,15 +396,25 @@ def test_rate_limit_returns_429_with_detail_field():
 
 
 # --------------------------------------------------------------------------- #
-# 6. Alur auth via API
+# 6. Alur auth via API (registrasi + verifikasi OTP)
 # --------------------------------------------------------------------------- #
-def test_register_returns_token_and_masked_phone(client):
+def test_register_requires_otp_before_issuing_token(client, outbox):
     response = _register(client)
     assert response.status_code == 201, response.text
     body = response.json()
-    assert body["token_type"] == "bearer"
-    assert body["user"]["no_wa_masked"] == "6281*****7890"
-    assert "password_hash" not in body["user"]
+    assert body["requires_verification"] is True
+    assert body["no_wa_masked"] == "6281*****7890"
+    assert "access_token" not in body
+    assert len(outbox) == 1
+    assert re.search(r"\b\d{6}\b", outbox[0]["message"])
+
+    verified = _verify(client, "081234567890", _last_otp(outbox))
+    assert verified.status_code == 200, verified.text
+    token_body = verified.json()
+    assert token_body["token_type"] == "bearer"
+    assert token_body["user"]["no_wa_masked"] == "6281*****7890"
+    assert token_body["user"]["is_verified"] is True
+    assert "password_hash" not in token_body["user"]
 
 
 def test_register_rejects_xss_name(client):
@@ -369,14 +423,75 @@ def test_register_rejects_xss_name(client):
     assert isinstance(response.json()["detail"], str)
 
 
-def test_register_rejects_duplicate_phone(client):
+def test_register_continues_for_unverified_phone(client, outbox):
     assert _register(client).status_code == 201
+    # Nomor sama tapi belum diverifikasi: pendaftaran boleh diulang.
+    retry = _register(client, nama="Rizky Baru")
+    assert retry.status_code == 201, retry.text
+    assert len(outbox) == 2
+
+    verified = _verify(client, "081234567890", _last_otp(outbox))
+    assert verified.status_code == 200
+    assert verified.json()["user"]["nama"] == "Rizky Baru"
+
+    # Setelah terverifikasi, nomor tidak boleh didaftarkan lagi.
     duplicate = _register(client, nama="Orang Lain")
     assert duplicate.status_code == 400
 
 
-def test_login_profile_and_short_password(client):
+def test_login_rejected_until_phone_verified(client, outbox):
     assert _register(client).status_code == 201
+
+    blocked = client.post(
+        "/api/v1/auth/login",
+        json={"no_wa": "081234567890", "password": "rahasia123"},
+    )
+    assert blocked.status_code == 403
+
+    assert _verify(client, "081234567890", _last_otp(outbox)).status_code == 200
+
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"no_wa": "081234567890", "password": "rahasia123"},
+    )
+    assert login.status_code == 200, login.text
+
+
+def test_verify_rejects_wrong_otp_then_accepts_correct(client, outbox):
+    assert _register(client).status_code == 201
+    correct = _last_otp(outbox)
+    wrong = "000000" if correct != "000000" else "111111"
+
+    rejected = _verify(client, "081234567890", wrong)
+    assert rejected.status_code == 400
+    assert "Sisa percobaan" in rejected.json()["detail"]
+
+    accepted = _verify(client, "081234567890", correct)
+    assert accepted.status_code == 200
+
+
+def test_resend_verification_respects_cooldown(client, outbox):
+    assert _register(client).status_code == 201
+    too_soon = client.post(
+        "/api/v1/auth/register/resend",
+        json={"no_wa": "081234567890"},
+    )
+    assert too_soon.status_code == 429
+    assert "detik" in too_soon.json()["detail"]
+
+
+def test_resend_verification_is_generic_for_unknown_number(client, outbox):
+    response = client.post(
+        "/api/v1/auth/register/resend",
+        json={"no_wa": "081299999999"},
+    )
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+    assert outbox == []
+
+
+def test_login_profile_and_short_password(client, outbox):
+    _register_and_verify(client, outbox)
 
     login = client.post(
         "/api/v1/auth/login",

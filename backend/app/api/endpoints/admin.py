@@ -24,18 +24,16 @@ from app.database import get_db
 from app.limiter import ADMIN_LIMIT, limiter
 from app.models import User
 from app.schemas import AdminUserCreate, AdminUserUpdate
-from app.utils import get_wa_candidates, mask_phone, normalize_wa
+from app.utils import get_utcnow_naive, get_wa_candidates, mask_phone, normalize_wa
 
 logger = logging.getLogger("admin_tools")
 router = APIRouter()
 
 ADMIN_SECRET = settings.ADMIN_API_KEY
 
-
 def require_admin(
     x_admin_key: str = Header(..., alias="x-admin-key"),
 ) -> str:
-    """Validasi kunci admin tanpa membocorkan waktu perbandingan."""
     provided = x_admin_key.encode("utf-8")
     expected = ADMIN_SECRET.encode("utf-8")
     if not ADMIN_SECRET or not secrets.compare_digest(provided, expected):
@@ -59,6 +57,7 @@ def _serialize_user(user: User) -> dict:
         "nama": user.nama,
         "no_wa_masked": mask_phone(user.no_wa),
         "is_alarm_active": user.is_alarm_active,
+        "is_verified": user.is_verified,
     }
 
 
@@ -82,6 +81,7 @@ def create_user(
         no_wa=cleaned_wa,
         password_hash=hash_password(data.password),
         is_alarm_active=True if data.is_alarm_active is None else data.is_alarm_active,
+        is_verified=True if data.is_verified is None else data.is_verified,
     )
     db.add(new_user)
     db.commit()
@@ -177,6 +177,12 @@ def update_user(
     if data.is_alarm_active is not None and data.is_alarm_active != user.is_alarm_active:
         changes.append("is_alarm_active")
         user.is_alarm_active = data.is_alarm_active
+
+    if data.is_verified is not None and data.is_verified != user.is_verified:
+        changes.append("is_verified")
+        user.is_verified = data.is_verified
+        if data.is_verified and user.verified_at is None:
+            user.verified_at = get_utcnow_naive()
 
     if not changes:
         return {"message": f"Tidak ada perubahan pada user {user_id}", "changed": []}

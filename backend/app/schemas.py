@@ -24,6 +24,16 @@ def _validate_password(value: str, field_label: str = "Kata sandi") -> str:
     return value
 
 
+def _validate_otp_code(value: str) -> str:
+    cleaned = value.strip()
+    if not cleaned.isdigit() or len(cleaned) != 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Kode OTP harus terdiri dari tepat 6 angka.",
+        )
+    return cleaned
+
+
 class UserRegister(BaseModel):
     nama: str = Field(..., min_length=2, max_length=100, description="Nama lengkap mahasiswa")
     no_wa: str = Field(..., min_length=9, max_length=20, description="Nomor WhatsApp (contoh: 08123456789 atau 628123456789)")
@@ -60,6 +70,7 @@ class UserResponse(BaseModel):
     nama: str
     no_wa: str
     is_alarm_active: bool
+    is_verified: bool = True
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -102,15 +113,47 @@ class ResetPasswordRequest(BaseModel):
     @field_validator("otp")
     @classmethod
     def _validate_otp(cls, value):
-        cleaned = value.strip()
-        if not cleaned.isdigit() or len(cleaned) != 6:
-            raise ValueError("Kode OTP harus terdiri dari tepat 6 angka.")
-        return cleaned
+        return _validate_otp_code(value)
 
     @field_validator("new_password")
     @classmethod
     def _clean_password(cls, value):
         return _validate_password(value, field_label="Kata sandi baru")
+
+
+class VerifyRegistrationRequest(BaseModel):
+    """Verifikasi nomor WhatsApp setelah pendaftaran."""
+
+    no_wa: str = Field(..., description="Nomor WhatsApp yang didaftarkan")
+    otp: str = Field(..., min_length=6, max_length=6, description="Kode OTP 6 digit dari WhatsApp")
+
+    @field_validator("no_wa", mode="before")
+    @classmethod
+    def _clean_no_wa(cls, value):
+        return sanitize_phone_input(value)
+
+    @field_validator("otp")
+    @classmethod
+    def _validate_otp(cls, value):
+        return _validate_otp_code(value)
+
+
+class ResendVerificationRequest(BaseModel):
+    no_wa: str = Field(..., description="Nomor WhatsApp yang didaftarkan")
+
+    @field_validator("no_wa", mode="before")
+    @classmethod
+    def _clean_no_wa(cls, value):
+        return sanitize_phone_input(value)
+
+
+class RegisterPendingResponse(BaseModel):
+    """Registrasi berhasil, tetapi user harus memverifikasi OTP dulu."""
+
+    requires_verification: bool = True
+    no_wa_masked: str
+    message: str
+    expires_in_seconds: int
 
 
 class UpdateProfileRequest(BaseModel):
@@ -146,6 +189,8 @@ class AdminUserCreate(BaseModel):
     no_wa: str = Field(..., min_length=9, max_length=20)
     password: str = Field(..., min_length=PASSWORD_MIN_LENGTH)
     is_alarm_active: Optional[bool] = True
+    # User yang dibuat admin dianggap sudah tepercaya (tanpa OTP).
+    is_verified: Optional[bool] = True
 
     @field_validator("nama", mode="before")
     @classmethod
@@ -170,6 +215,7 @@ class AdminUserUpdate(BaseModel):
     no_wa: Optional[str] = Field(default=None, min_length=9, max_length=20)
     password: Optional[str] = Field(default=None, min_length=PASSWORD_MIN_LENGTH)
     is_alarm_active: Optional[bool] = None
+    is_verified: Optional[bool] = None
 
     @field_validator("nama", mode="before")
     @classmethod

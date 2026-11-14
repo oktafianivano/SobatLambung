@@ -36,7 +36,6 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins_list(self) -> list[str]:
-        """Ubah string CORS_ORIGINS menjadi list yang siap dipakai middleware."""
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
 
 

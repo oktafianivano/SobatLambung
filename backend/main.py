@@ -11,15 +11,11 @@ from app.middleware import SecurityHeadersMiddleware
 from app.scheduler import init_scheduler
 from app.api.router import API_V1_PREFIX, api_legacy_router, api_v1_router
 
-# Skema database dikelola oleh Alembic (lihat folder `alembic/`).
-# create_all hanya dipakai untuk kenyamanan development/test; di production
-# jalankan `alembic upgrade head` lebih dahulu (sudah otomatis di Dockerfile).
 if settings.APP_ENV.lower() != "production":
     Base.metadata.create_all(bind=engine)
 
 
 def _warn_insecure_settings() -> None:
-    """Ingatkan (tanpa menghentikan app) jika konfigurasi masih lemah."""
     if len(settings.SECRET_KEY) < 32:
         print(
             "[SECURITY WARNING] SECRET_KEY kurang dari 32 karakter. "
@@ -31,9 +27,7 @@ def _warn_insecure_settings() -> None:
             "Ganti dengan kunci acak sebelum aplikasi dipakai publik."
         )
 
-
 _warn_insecure_settings()
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -51,12 +45,9 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Rate limiting (slowapi): batas per IP, tanpa perlu membatasi CORS.
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
 
-# Security headers dipasang lebih dulu, lalu CORS di lapisan terluar agar
-# header CORS tetap ada pada semua respons (termasuk error 429/4xx).
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
     CORSMiddleware,
@@ -68,7 +59,6 @@ app.add_middleware(
 
 @app.get("/", tags=["Health"])
 def read_root():
-    """Info singkat API di root (dipertahankan dari versi sebelumnya)."""
     return {
         "app": "Sobat Lambung API",
         "status": "online",
@@ -79,7 +69,6 @@ def read_root():
 
 @app.get("/health", tags=["Health"])
 def health_check():
-    """Dipakai oleh monitoring / platform deploy untuk memastikan API hidup."""
     return {
         "status": "ok",
         "service": "sobat-lambung-api",
@@ -89,5 +78,4 @@ def health_check():
     }
 
 app.include_router(api_v1_router)
-# Alias lama (/api/...) tetap aktif agar klien versi sebelumnya tidak rusak.
 app.include_router(api_legacy_router)

@@ -18,7 +18,8 @@ def create(db: Session, user_data: UserRegister, cleaned_wa: str) -> User:
         nama=user_data.nama.strip(),
         no_wa=cleaned_wa,
         password_hash=hash_password(user_data.password),
-        is_alarm_active=True
+        is_alarm_active=True,
+        is_verified=False,
     )
     db.add(db_user)
     db.commit()
