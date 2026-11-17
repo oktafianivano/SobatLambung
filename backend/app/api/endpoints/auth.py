@@ -4,8 +4,24 @@ import secrets
 from datetime import timedelta
 
 from app.database import get_db
-from app.schemas import UserRegister, UserLogin, TokenResponse, ForgotPasswordRequest, ResetPasswordRequest
-from app.auth import hash_password, verify_password, create_access_token, password_fingerprint
+from app.schemas import (
+    UserRegister,
+    UserLogin,
+    TokenResponse,
+    RefreshTokenRequest,
+    RefreshTokenResponse,
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
+)
+from app.auth import (
+    hash_password,
+    verify_password,
+    create_access_token,
+    create_refresh_token,
+    decode_refresh_token,
+    password_fingerprint,
+)
+from app.config import settings
 from app.utils import clean_wa, normalize_wa, get_wa_candidates, get_utcnow_naive
 from app.scheduler import build_reset_otp_message, send_fonnte_message
 from app.crud import user as crud_user
@@ -17,6 +33,26 @@ OTP_EXPIRE_MINUTES = 10
 OTP_RESEND_COOLDOWN_SECONDS = 60
 OTP_MAX_ATTEMPTS = 5
 
+INVALID_REFRESH_DETAIL = "Sesi login berakhir. Silakan login ulang."
+
+
+def _token_payload(user_obj) -> dict:
+    return {
+        "sub": str(user_obj.id),
+        "nama": user_obj.nama,
+        "pwd": password_fingerprint(user_obj.password_hash),
+    }
+
+
+def _build_token_response(user_obj) -> dict:
+    payload = _token_payload(user_obj)
+    return {
+        "access_token": create_access_token(payload),
+        "refresh_token": create_refresh_token(payload),
+        "token_type": "bearer",
+        "user": user_obj,
+    }
+
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 def register(user_data: UserRegister, db: Session = Depends(get_db)):
     cleaned_wa = normalize_wa(user_data.no_wa)
@@ -27,10 +63,7 @@ def register(user_data: UserRegister, db: Session = Depends(get_db)):
 
     new_user = crud_user.create(db, user_data, cleaned_wa)
 
-    access_token = create_access_token(
-        data={"sub": str(new_user.id), "nama": new_user.nama, "pwd": password_fingerprint(new_user.password_hash)}
-    )
-    return {"access_token": access_token, "token_type": "bearer", "user": new_user}
+    return _build_token_response(new_user)
 
 @router.post("/login", response_model=TokenResponse)
 def login(login_data: UserLogin, db: Session = Depends(get_db)):
@@ -40,10 +73,23 @@ def login(login_data: UserLogin, db: Session = Depends(get_db)):
     if not user_obj or not verify_password(login_data.password, user_obj.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Nomor WhatsApp atau kata sandi salah.")
 
-    access_token = create_access_token(
-        data={"sub": str(user_obj.id), "nama": user_obj.nama, "pwd": password_fingerprint(user_obj.password_hash)}
-    )
-    return {"access_token": access_token, "token_type": "bearer", "user": user_obj}
+    return _build_token_response(user_obj)
+
+@router.post("/refresh", response_model=RefreshTokenResponse)
+def refresh_access_token(payload: RefreshTokenRequest, db: Session = Depends(get_db)):
+    token_data = decode_refresh_token(payload.refresh_token)
+    if not token_data or "sub" not in token_data:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=INVALID_REFRESH_DETAIL)
+
+    user_obj = crud_user.get_by_id(db, int(token_data["sub"]))
+    if not user_obj or token_data.get("pwd") != password_fingerprint(user_obj.password_hash):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=INVALID_REFRESH_DETAIL)
+
+    return {
+        "access_token": create_access_token(_token_payload(user_obj)),
+        "token_type": "bearer",
+        "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    }
 
 @router.post("/forgot-password/request")
 async def forgot_password_request(payload: ForgotPasswordRequest, db: Session = Depends(get_db)):

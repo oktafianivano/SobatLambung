@@ -70,7 +70,8 @@ DATABASE_URL=postgresql://[user]:[password]@[host]:[port]/[db_name]
 # Security
 SECRET_KEY=buat_secret_key_yang_panjang_dan_acak_disini
 ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=1440
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+REFRESH_TOKEN_EXPIRE_DAYS=1
 ```
 
 Jalankan server Backend agar bisa diakses dari perangkat lain di jaringan yang sama:

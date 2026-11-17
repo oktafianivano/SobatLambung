@@ -1,4 +1,4 @@
-import { API_URL } from '../config';
+import { apiFetch } from '../lib/api';
 import React, { useState } from 'react';
 import { UserProfile } from '../types';
 import { STATIC_SCHEDULES } from '../logic/sobatLambung';
@@ -35,12 +35,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
     setIsSendingTest(true);
     setToggleFeedback(null);
     try {
-      const response = await fetch(`${API_URL}/api/user/test-notification?meal_key=breakfast`, {
+      const response = await apiFetch('/api/user/test-notification?meal_key=breakfast', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${currentUser.token}`,
-          'Content-Type': 'application/json'
-        },
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || 'Gagal mengirim test');

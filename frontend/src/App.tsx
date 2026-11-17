@@ -1,5 +1,15 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { UserProfile } from './types';
+import {
+  apiFetch,
+  clearSession,
+  getSavedActiveTab,
+  getSession,
+  saveActiveTab,
+  saveSession,
+  SESSION_EXPIRED_EVENT,
+  SESSION_UPDATED_EVENT,
+} from './lib/api';
 import { Navbar } from './components/Navbar';
 import { HeroEducation } from './components/HeroEducation';
 import { GerdGastritisGuide } from './components/GerdGastritisGuide';
@@ -21,11 +31,73 @@ import {
 } from 'lucide-react';
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => getSession());
 
-  const [activeTab, setActiveTab] = useState<string>('landing');
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    if (!getSession()) return 'landing';
+    return getSavedActiveTab() ?? 'dashboard';
+  });
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+
+  // Validasi sesi saat halaman dibuka/di-refresh.
+  // Jika access token sudah kedaluwarsa, apiFetch otomatis memakai refresh token.
+  useEffect(() => {
+    if (!currentUser) return;
+    let cancelled = false;
+
+    apiFetch('/api/user/profile')
+      .then(async (response) => {
+        if (!response.ok) return;
+        const freshUser = (await response.json()) as Partial<UserProfile>;
+        if (cancelled) return;
+
+        const session = getSession();
+        if (!session) return;
+
+        const updated: UserProfile = {
+          ...session,
+          ...freshUser,
+          token: session.token,
+          refresh_token: session.refresh_token,
+        };
+        saveSession(updated);
+        setCurrentUser(updated);
+      })
+      .catch(() => {
+        // Kegagalan jaringan tidak langsung menghapus sesi.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // Cukup jalankan sekali saat aplikasi dimuat.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Sinkronkan state dengan perubahan token dari apiFetch (refresh berhasil/gagal).
+  useEffect(() => {
+    const handleSessionUpdated = (event: Event) => {
+      const updated = (event as CustomEvent<UserProfile>).detail;
+      if (updated) setCurrentUser(updated);
+    };
+    const handleSessionExpired = () => {
+      setCurrentUser(null);
+      setActiveTab('landing');
+    };
+
+    window.addEventListener(SESSION_UPDATED_EVENT, handleSessionUpdated);
+    window.addEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
+    return () => {
+      window.removeEventListener(SESSION_UPDATED_EVENT, handleSessionUpdated);
+      window.removeEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
+    };
+  }, []);
+
+  // Ingat tab terakhir supaya tidak kembali ke landing setelah refresh.
+  useEffect(() => {
+    if (currentUser) saveActiveTab(activeTab);
+  }, [activeTab, currentUser]);
 
   const handleOpenAuth = (mode: 'login' | 'register') => {
     setAuthMode(mode);
@@ -34,10 +106,22 @@ export default function App() {
 
   const handleAuthSuccess = (user: UserProfile) => {
     setCurrentUser(user);
+    if (user.token && !user.token.startsWith('jwt_demo_token_')) {
+      saveSession(user);
+      saveActiveTab('dashboard');
+    }
     setActiveTab('dashboard');
   };
 
+  const handleUpdateUser = (updatedUser: UserProfile) => {
+    setCurrentUser(updatedUser);
+    if (updatedUser.token && !updatedUser.token.startsWith('jwt_demo_token_')) {
+      saveSession(updatedUser);
+    }
+  };
+
   const handleLogout = () => {
+    clearSession();
     setCurrentUser(null);
     setActiveTab('landing');
   };
@@ -124,7 +208,7 @@ export default function App() {
           currentUser ? (
             <Dashboard
               currentUser={currentUser}
-              onUpdateUser={setCurrentUser}
+              onUpdateUser={handleUpdateUser}
               onOpenAuth={handleOpenAuth}
             />
           ) : (
@@ -183,7 +267,7 @@ export default function App() {
           currentUser ? (
             <AccountSettings
               currentUser={currentUser}
-              onUpdateUser={setCurrentUser}
+              onUpdateUser={handleUpdateUser}
               onLogout={handleLogout}
             />
           ) : (

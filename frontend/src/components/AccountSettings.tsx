@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { API_URL } from '../config';
+import { apiFetch, getSession } from '../lib/api';
 import { UserProfile } from '../types';
 import { normalizeWhatsAppNumber, validatePassword } from '../logic/sobatLambung';
 import { PasswordInput } from './PasswordInput';
@@ -75,12 +75,8 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
     }
 
     setIsSavingProfile(true);
-    fetch(`${API_URL}/api/user/profile`, {
+    apiFetch('/api/user/profile/update', {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${currentUser.token}`,
-      },
       body: JSON.stringify({
         nama: nama.trim(),
         no_wa: phoneCheck.formatted,
@@ -91,7 +87,12 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || 'Gagal menyimpan perubahan profil.');
 
-        onUpdateUser({ ...data, token: currentUser.token });
+        const latest = getSession();
+        onUpdateUser({
+          ...data,
+          token: latest?.token ?? currentUser.token,
+          refresh_token: latest?.refresh_token ?? currentUser.refresh_token,
+        });
         setProfilePassword('');
         setProfileFeedback({ type: 'success', text: 'Profil berhasil diperbarui.' });
       })
@@ -125,12 +126,8 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
     }
 
     setIsSavingPassword(true);
-    fetch(`${API_URL}/api/user/change-password`, {
+    apiFetch('/api/user/change-password', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${currentUser.token}`,
-      },
       body: JSON.stringify({
         current_password: currentPassword,
         new_password: newPassword,
@@ -143,9 +140,11 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
         setCurrentPassword('');
         setNewPassword('');
         setConfirmPassword('');
-        if (data.access_token) {
-          onUpdateUser({ ...currentUser, token: data.access_token });
-        }
+        onUpdateUser({
+          ...currentUser,
+          token: data.access_token ?? currentUser.token,
+          refresh_token: data.refresh_token ?? currentUser.refresh_token,
+        });
         setPasswordFeedback({ type: 'success', text: data.message || 'Kata sandi berhasil diperbarui.' });
       })
       .catch((err) => setPasswordFeedback({ type: 'error', text: err.message }))

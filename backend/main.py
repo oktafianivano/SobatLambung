@@ -24,13 +24,20 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Izinkan origin development: localhost + semua IP privat (LAN) di port berapa pun.
+# Ini mencegah error "Failed to fetch"/CORS saat IP perangkat berubah-ubah.
+DEV_ORIGIN_REGEX = (
+    r"^https?://("
+    r"localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|"
+    r"10\.\d{1,3}\.\d{1,3}\.\d{1,3}|"
+    r"192\.168\.\d{1,3}\.\d{1,3}|"
+    r"172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}"
+    r")(:\d+)?$"
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000", 
-        "http://127.0.0.1:3000",
-        "http://192.168.18.28:3000"
-    ],
+    allow_origin_regex=DEV_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

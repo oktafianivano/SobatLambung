@@ -176,6 +176,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         const user: UserProfile = {
           ...data.user,
           token: data.access_token,
+          refresh_token: data.refresh_token,
         };
         onSuccess(user);
         onClose();

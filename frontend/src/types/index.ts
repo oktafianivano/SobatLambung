@@ -4,6 +4,7 @@ export interface UserProfile {
   no_wa: string;
   is_alarm_active: boolean;
   token?: string;
+  refresh_token?: string;
 }
 
 export interface FoodCategory {
