@@ -1,8 +1,11 @@
-// Backend base URL.
-// - Default: ikut host yang sedang membuka frontend (localhost, IP LAN, dsb.)
-// - Bisa dioverride lewat env VITE_API_URL saat build/dev.
-const envUrl = import.meta.env.VITE_API_URL?.trim();
+/**
+ * Konfigurasi frontend.
+ *
+ * Urutan prioritas:
+ * 1. `VITE_API_URL` dari file `.env` / build arg (dipakai saat deploy/Docker).
+ * 2. Fallback: host yang sama dengan halaman, port 8000 (nyaman untuk dev LAN).
+ */
+const fallbackBaseUrl = `http://${window.location.hostname}:8000`;
+const envBaseUrl = import.meta.env.VITE_API_URL?.trim();
 
-export const API_URL = (
-  envUrl && envUrl.length > 0 ? envUrl : `http://${window.location.hostname}:8000`
-).replace(/\/+$/, '');
+export const API_URL = (envBaseUrl || fallbackBaseUrl).replace(/\/+$/, '');

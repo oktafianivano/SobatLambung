@@ -1,1 +1,50 @@
 @import "tailwindcss";
+
+/*
+ * Utilitas kecil yang dipakai di beberapa komponen.
+ * Tailwind v4 tidak menyertakan `animate-in`/`no-scrollbar` secara bawaan,
+ * jadi kita definisikan sendiri agar animasi & tab strip mobile tetap rapi.
+ */
+@keyframes sl-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-in.fade-in,
+.animate-fade-in {
+  animation: sl-fade-in 0.35s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-in.fade-in,
+  .animate-fade-in {
+    animation: none;
+  }
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/*
+ * `overflow-x: clip` mencegah scroll horizontal tak sengaja di layar sempit
+ * tanpa merusak `position: sticky` pada navbar (berbeda dari `hidden`).
+ */
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  overflow-x: clip;
+}

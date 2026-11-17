@@ -1,4 +1,4 @@
-import { API_URL } from '../config';
+import { apiUrl } from '../services/api';
 import { UserProfile } from '../types';
 
 const SESSION_KEY = 'sobat_lambung_session';
@@ -64,7 +64,7 @@ async function requestNewAccessToken(): Promise<RefreshResult> {
   }
 
   try {
-    const response = await fetch(`${API_URL}/api/refresh`, {
+    const response = await fetch(apiUrl('/auth/refresh'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refresh_token: session.refresh_token }),
@@ -142,7 +142,7 @@ export async function apiFetch(
     if (useAuth && token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
-    return fetch(`${API_URL}${path}`, { ...init, headers });
+    return fetch(apiUrl(path), { ...init, headers });
   };
 
   let response = await doFetch(session?.token);

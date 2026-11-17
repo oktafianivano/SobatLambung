@@ -12,7 +12,7 @@ logger = logging.getLogger("sobat_lambung_scheduler")
 
 MEAL_TEMPLATES = {
     "breakfast": {
-        "title": "🌅 Waktunya Sarapan Sehat (07:00 WIB)",
+        "title": "🌅 Waktunya Sarapan Sehat (07:30 WIB)",
         "menu": ["Bubur ayam tanpa sambal / kuah kuning ringan", "Oatmeal dengan pisang matang & madu", "Roti gandum panggang + telur rebus"],
         "advice": "Jangan biarkan lambung kosong lebih dari 12 jam sejak malam. Asam lambung pagi hari dapat mengikis mukosa jika tidak dinetralisir sarapan rendah asam."
     },
@@ -38,6 +38,18 @@ def build_reset_otp_message(user_name: str, otp_code: str, expire_minutes: int) 
         f"Kode ini berlaku selama *{expire_minutes} menit* dan hanya dapat digunakan satu kali.\n"
         f"Jangan bagikan kode ini kepada siapa pun, termasuk pihak yang mengaku sebagai admin Sobat Lambung.\n\n"
         f"_Jika Anda tidak merasa meminta reset kata sandi, abaikan pesan ini. Kata sandi Anda tidak akan berubah._"
+    )
+
+
+def build_verification_otp_message(user_name: str, otp_code: str, expire_minutes: int) -> str:
+    return (
+        f"Halo *{user_name}*! 👋\n"
+        f"Verifikasi nomor WhatsApp akun *Sobat Lambung* 🥣\n\n"
+        f"Kode OTP Anda:\n"
+        f"*{otp_code}*\n\n"
+        f"Kode ini berlaku selama *{expire_minutes} menit* dan hanya dapat digunakan satu kali.\n"
+        f"Jangan bagikan kode ini kepada siapa pun, termasuk pihak yang mengaku sebagai admin Sobat Lambung.\n\n"
+        f"_Jika Anda tidak merasa mendaftar di Sobat Lambung, abaikan pesan ini._"
     )
 
 
@@ -92,8 +104,6 @@ def trigger_scheduled_broadcast(meal_key: str):
         logger.info(f"Memulai broadcast pengingat {meal_key} ke {len(active_users)} pengguna aktif.")
         
         import asyncio
-        # Menggunakan new_event_loop dan run_until_complete untuk setiap user
-        # karena APScheduler berjalan di thread terpisah tanpa akses ke event loop main thread
         for user in active_users:
             msg = build_whatsapp_message(user.nama, meal_key)
             try:
@@ -111,7 +121,7 @@ def init_scheduler():
 
     scheduler.add_job(
         trigger_scheduled_broadcast,
-        CronTrigger(hour=7, minute=0),
+        CronTrigger(hour=7, minute=30),
         args=["breakfast"],
         id="alarm_breakfast",
         name="Pengingat Sarapan Sobat Lambung",

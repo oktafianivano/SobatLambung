@@ -24,7 +24,7 @@ export const KeychainPreview: React.FC<KeychainPreviewProps> = ({ onScanSuccess 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
         {/* Visual of the Share QR */}
         <div className="lg:col-span-5 flex flex-col items-center">
-          <div className="w-72 bg-white rounded-3xl p-8 shadow-xl border border-slate-200 flex flex-col items-center text-center">
+          <div className="w-full max-w-72 bg-white rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-200 flex flex-col items-center text-center">
             <h3 className="font-bold text-slate-900 mb-4">Scan untuk Berbagi</h3>
             
             {/* QR Code Graphic */}
@@ -50,8 +50,28 @@ export const KeychainPreview: React.FC<KeychainPreviewProps> = ({ onScanSuccess 
             </p>
             <button
               onClick={() => {
-                navigator.clipboard.writeText(window.location.origin);
-                alert("Link berhasil disalin!");
+                const url = "http://192.168.18.28:3000/";
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                  navigator.clipboard.writeText(url).then(() => {
+                    alert("Link berhasil disalin ke clipboard!");
+                  }).catch(err => {
+                    console.error('Gagal menyalin:', err);
+                    alert("Gagal menyalin. Silakan salin manual: " + url);
+                  });
+                } else {
+                  // Fallback for older browsers
+                  const textArea = document.createElement("textarea");
+                  textArea.value = url;
+                  document.body.appendChild(textArea);
+                  textArea.select();
+                  try {
+                    document.execCommand('copy');
+                    alert("Link berhasil disalin (fallback mode)!");
+                  } catch (err) {
+                    alert("Gagal menyalin. Silakan salin manual: " + url);
+                  }
+                  document.body.removeChild(textArea);
+                }
               }}
               className="mt-2 text-xs font-semibold text-emerald-700 hover:underline cursor-pointer"
             >

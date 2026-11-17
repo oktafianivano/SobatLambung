@@ -2,20 +2,41 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from app.database import engine, Base
-from app.scheduler import init_scheduler
-from app.api.endpoints import public, auth, users, admin
+from slowapi.errors import RateLimitExceeded
 
-Base.metadata.create_all(bind=engine)
+from app.database import engine, Base
+from app.config import settings
+from app.limiter import limiter, rate_limit_handler
+from app.middleware import SecurityHeadersMiddleware
+from app.scheduler import init_scheduler
+from app.api.router import API_V1_PREFIX, api_legacy_router, api_v1_router
+
+if settings.APP_ENV.lower() != "production":
+    Base.metadata.create_all(bind=engine)
+
+
+def _warn_insecure_settings() -> None:
+    if len(settings.SECRET_KEY) < 32:
+        print(
+            "[SECURITY WARNING] SECRET_KEY kurang dari 32 karakter. "
+            "Gunakan nilai acak panjang, mis. `python -c \"import secrets;print(secrets.token_urlsafe(48))\"`."
+        )
+    if settings.ADMIN_API_KEY == "sobatlambung_it_2026":
+        print(
+            "[SECURITY WARNING] ADMIN_API_KEY masih memakai nilai default. "
+            "Ganti dengan kunci acak sebelum aplikasi dipakai publik."
+        )
+
+_warn_insecure_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     scheduler = init_scheduler()
     scheduler.start()
-    print(f"🚀 APScheduler Sobat Lambung aktif (Jadwal: 09:55, 12:00, 18:30 WIB)")
+    print("[INFO] APScheduler Sobat Lambung aktif (Jadwal: 07:30, 12:00, 18:30 WIB)")
     yield
     scheduler.shutdown()
-    print("🛑 APScheduler dimatikan")
+    print("[INFO] APScheduler dimatikan")
 
 app = FastAPI(
     title="Sobat Lambung API",
@@ -35,15 +56,43 @@ DEV_ORIGIN_REGEX = (
     r")(:\d+)?$"
 )
 
+# Origin tambahan dari .env (CORS_ORIGINS), mis. domain tunnel/produksi.
+configured_origins = [
+    origin for origin in settings.cors_origins_list if origin != "*"
+]
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
+
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
     CORSMiddleware,
+    allow_origins=configured_origins,
     allow_origin_regex=DEV_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.include_router(public.router, tags=["Public"])
-app.include_router(auth.router, prefix="/api", tags=["Auth"])
-app.include_router(users.router, prefix="/api/user", tags=["User Dashboard"])
-app.include_router(admin.router, prefix="/api/admin", tags=["Admin Tools"])
+@app.get("/", tags=["Health"])
+def read_root():
+    return {
+        "app": "Sobat Lambung API",
+        "status": "online",
+        "version": app.version,
+        "api_base": API_V1_PREFIX,
+        "docs_url": "/docs",
+    }
+
+@app.get("/health", tags=["Health"])
+def health_check():
+    return {
+        "status": "ok",
+        "service": "sobat-lambung-api",
+        "version": app.version,
+        "env": settings.APP_ENV,
+        "api_base": API_V1_PREFIX,
+    }
+
+app.include_router(api_v1_router)
+app.include_router(api_legacy_router)

@@ -1,15 +1,43 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+
 class Settings(BaseSettings):
-    APP_ENV: str 
+    # Application
+    APP_ENV: str = "development"
+
+    # Security / JWT
     SECRET_KEY: str
-    ALGORITHM: str 
-    ACCESS_TOKEN_EXPIRE_MINUTES: int 
+    ALGORITHM: str = "HS256"
+    # Access token singkat; diperbarui otomatis lewat refresh token.
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 1
+
+    # Rate limiting (slowapi). Bisa dimatikan saat load-test lokal.
+    RATE_LIMIT_ENABLED: bool = True
+    # Aktifkan hanya jika berjalan di belakang reverse proxy/tunnel
+    # (ngrok, cloudflared) agar rate limit dihitung per IP pengunjung.
+    # Jangan aktifkan saat diakses langsung lewat LAN: header X-Forwarded-For
+    # bisa dipalsukan untuk melewati rate limit.
+    TRUST_PROXY_HEADERS: bool = False
+
+    # Database
     DATABASE_URL: str
-    FONNTE_TOKEN: str
-    FONNTE_API_URL: str 
+
+    # WhatsApp Gateway (Fonnte)
+    FONNTE_TOKEN: str = ""
+    FONNTE_API_URL: str = "https://api.fonnte.com/send"
+
+    # Admin Tools
+    ADMIN_API_KEY: str = "sobatlambung_it_2026"
+
+    # CORS (dipisah koma)
+    CORS_ORIGINS: str = ("*")
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+
 
 settings = Settings()

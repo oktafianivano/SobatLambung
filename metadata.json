@@ -1,6 +1,0 @@
-{
-  "name": "Sobat Lambung",
-  "description": "Platform edukasi pencegahan Gastritis & GERD terintegrasi pengingat jam makan WhatsApp bagi mahasiswa.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

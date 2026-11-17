@@ -1,4 +1,4 @@
-import { apiFetch } from '../lib/api';
+import { apiFetch, getSession } from '../lib/api';
 import React, { useState } from 'react';
 import { UserProfile } from '../types';
 import { STATIC_SCHEDULES } from '../logic/sobatLambung';
@@ -35,7 +35,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     setIsSendingTest(true);
     setToggleFeedback(null);
     try {
-      const response = await apiFetch('/api/user/test-notification?meal_key=breakfast', {
+      const response = await apiFetch('/user/test-notification?meal_key=breakfast', {
         method: 'POST',
       });
       const data = await response.json();
@@ -50,24 +50,57 @@ export const Dashboard: React.FC<DashboardProps> = ({
     }
   };
 
-  const handleToggleAlarm = () => {
-    setIsUpdating(true);
+  const handleToggleAlarm = async () => {
     const newStatus = !currentUser.is_alarm_active;
 
-    // Simulate backend PUT /api/user/toggle-alarm
-    setTimeout(() => {
-      setIsUpdating(false);
-      onUpdateUser({
-        ...currentUser,
-        is_alarm_active: newStatus,
-      });
+    // Akun demo (tanpa JWT asli) tidak punya baris di database,
+    // jadi perubahan hanya berlaku di tampilan.
+    if (!currentUser.token || currentUser.token.startsWith('jwt_demo_token_')) {
+      onUpdateUser({ ...currentUser, is_alarm_active: newStatus });
       setToggleFeedback(
         newStatus
-          ? 'Layanan pengingat WhatsApp diaktifkan! Server Cron Job akan mengirim pesan setiap jam makan.'
+          ? 'Mode demo: pengingat ditandai aktif (tidak tersimpan ke server).'
+          : 'Mode demo: pengingat ditandai nonaktif (tidak tersimpan ke server).'
+      );
+      setTimeout(() => setToggleFeedback(null), 4000);
+      return;
+    }
+
+    setIsUpdating(true);
+    setToggleFeedback(null);
+
+    try {
+      const response = await apiFetch('/user/toggle-alarm', {
+        method: 'PUT',
+        body: JSON.stringify({ is_alarm_active: newStatus }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || 'Gagal memperbarui status pengingat.');
+      }
+
+      // Server adalah sumber kebenaran: pakai nilai yang dikembalikan.
+      // Ambil token terbaru dari sesi, karena apiFetch bisa saja baru
+      // memperbarui access token lewat refresh token.
+      const latest = getSession();
+      onUpdateUser({
+        ...currentUser,
+        ...data,
+        token: latest?.token ?? currentUser.token,
+        refresh_token: latest?.refresh_token ?? currentUser.refresh_token,
+      });
+
+      setToggleFeedback(
+        data.is_alarm_active
+          ? 'Layanan pengingat WhatsApp diaktifkan! Server akan mengirim pesan setiap jam makan.'
           : 'Layanan pengingat dinonaktifkan. Anda tidak akan menerima pesan broadcast sampai diaktifkan kembali.'
       );
-      setTimeout(() => setToggleFeedback(null), 3500);
-    }, 300);
+    } catch (err: any) {
+      setToggleFeedback(`❌ Gagal mengubah pengingat: ${err.message}`);
+    } finally {
+      setIsUpdating(false);
+      setTimeout(() => setToggleFeedback(null), 4000);
+    }
   };
 
   return (
@@ -80,16 +113,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <ShieldCheck className="w-3.5 h-3.5" />
               <span>Dasbor Privat Mahasiswa Terverifikasi</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white wrap-break-words">
               Halo, {currentUser.nama}! 👋
             </h1>
-            <p className="text-emerald-100/80 text-xs sm:text-sm mt-1">
+            <p className="text-emerald-100/80 text-xs sm:text-sm mt-1 break-all">
               Nomor WhatsApp Terhubung: <span className="font-mono font-bold text-white">+{currentUser.no_wa}</span>
             </p>
           </div>
 
           {/* Big Interactive Toggle Switch */}
-          <div className="bg-white/10 backdrop-blur-md border border-white/20 p-4 sm:p-5 rounded-2xl flex flex-col gap-4 min-w-70">
+          <div className="w-full md:w-auto md:min-w-70 bg-white/10 backdrop-blur-md border border-white/20 p-4 sm:p-5 rounded-2xl flex flex-col gap-4">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-xs font-bold text-white uppercase tracking-wider">

@@ -27,10 +27,10 @@ export const FoodGuide: React.FC = () => {
         </div>
 
         {/* Filter Buttons */}
-        <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 self-start sm:self-auto">
+        <div className="flex flex-wrap bg-slate-100 p-1 rounded-xl border border-slate-200 self-start sm:self-auto">
           <button
             onClick={() => setFilterType('all')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
               filterType === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'
             }`}
           >
@@ -38,7 +38,7 @@ export const FoodGuide: React.FC = () => {
           </button>
           <button
             onClick={() => setFilterType('recommended')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
               filterType === 'recommended' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600'
             }`}
           >
@@ -46,7 +46,7 @@ export const FoodGuide: React.FC = () => {
           </button>
           <button
             onClick={() => setFilterType('avoid')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
               filterType === 'avoid' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-600'
             }`}
           >
