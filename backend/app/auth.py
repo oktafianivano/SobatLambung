@@ -36,13 +36,6 @@ def password_fingerprint(hashed_password: str) -> str:
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """Buat JWT dengan klaim keamanan lengkap.
-
-    - ``iat``/``nbf``: waktu terbit & mulai berlaku.
-    - ``exp``: kedaluwarsa (default dari settings, 12 jam).
-    - ``jti``: ID unik token (memudahkan audit/revoke di masa depan).
-    - ``typ``: penanda bahwa token ini access token, bukan token lain.
-    """
     now = datetime.now(timezone.utc)
     if expires_delta:
         expire = now + expires_delta

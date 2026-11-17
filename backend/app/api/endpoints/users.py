@@ -3,14 +3,16 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import User
-from app.schemas import UserResponse, ToggleAlarmRequest, UpdateProfileRequest, ChangePasswordRequest
+from app.schemas import UserResponse, ToggleAlarmRequest, UpdateProfileRequest, ChangePasswordRequest, ResetPasswordRequest
 from app.api.dependencies import get_current_user
 from app.auth import verify_password, hash_password, create_access_token, password_fingerprint
 from app.limiter import NOTIFICATION_LIMIT, PROFILE_LIMIT, limiter
-from app.utils import normalize_wa, get_wa_candidates, sanitize_simple_text
-from app.scheduler import build_whatsapp_message, send_fonnte_message
+from app.utils import normalize_wa, get_wa_candidates, sanitize_simple_text, as_naive_utc, get_utcnow_naive
+from app.scheduler import build_whatsapp_message, send_fonnte_message, build_reset_otp_message
 from app.crud import user as crud_user
 from app.crud import otp as crud_otp
+from app.api.endpoints.auth import _issue_otp, OTP_EXPIRE_MINUTES, OTP_MAX_ATTEMPTS
+from datetime import timedelta
 
 router = APIRouter()
 
