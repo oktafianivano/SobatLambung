@@ -1,7 +1,7 @@
 import { apiFetch, getSession } from '../lib/api';
 import React, { useState } from 'react';
 import { UserProfile } from '../types';
-import { STATIC_SCHEDULES } from '../logic/sobatLambung';
+import { useSchedules } from '../hooks/useSchedules';
 import { WhatsAppPhoneMockup } from './WhatsAppPhoneMockup';
 import {
   Bell,
@@ -30,6 +30,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [isUpdating, setIsUpdating] = useState(false);
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [toggleFeedback, setToggleFeedback] = useState<string | null>(null);
+  const schedules = useSchedules();
 
   const handleSendTestNotification = async () => {
     setIsSendingTest(true);
@@ -191,7 +192,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
         {/* 3 Static Time Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {STATIC_SCHEDULES.map((item) => (
+          {schedules.map((item) => (
             <div
               key={item.id}
               className="rounded-2xl border border-slate-200 bg-linear-to-b from-slate-50/60 to-white p-5 flex flex-col justify-between hover:border-emerald-300 transition-all shadow-xs"

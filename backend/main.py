@@ -9,6 +9,7 @@ from app.config import settings
 from app.limiter import limiter, rate_limit_handler
 from app.middleware import SecurityHeadersMiddleware
 from app.scheduler import init_scheduler
+from app.reminder_config import MEAL_ORDER, reminder_config
 from app.api.router import API_V1_PREFIX, api_legacy_router, api_v1_router
 
 if settings.APP_ENV.lower() != "production":
@@ -33,7 +34,11 @@ _warn_insecure_settings()
 async def lifespan(app: FastAPI):
     scheduler = init_scheduler()
     scheduler.start()
-    print("[INFO] APScheduler Sobat Lambung aktif (Jadwal: 07:30, 12:00, 18:30 WIB)")
+    jadwal = ", ".join(reminder_config.meal_times[meal] for meal in MEAL_ORDER)
+    print(
+        "[INFO] APScheduler Sobat Lambung aktif "
+        f"(Jadwal: {jadwal} {reminder_config.timezone_label})"
+    )
     yield
     scheduler.shutdown()
     print("[INFO] APScheduler dimatikan")

@@ -6,27 +6,15 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models import User
 from app.config import settings
+from app.reminder_config import MEAL_ORDER, reminder_config
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("sobat_lambung_scheduler")
 
-MEAL_TEMPLATES = {
-    "breakfast": {
-        "title": "🌅 Waktunya Sarapan Sehat (07:30 WIB)",
-        "menu": ["Bubur ayam tanpa sambal / kuah kuning ringan", "Oatmeal dengan pisang matang & madu", "Roti gandum panggang + telur rebus"],
-        "advice": "Jangan biarkan lambung kosong lebih dari 12 jam sejak malam. Asam lambung pagi hari dapat mengikis mukosa jika tidak dinetralisir sarapan rendah asam."
-    },
-    "lunch": {
-        "title": "☀️ Waktunya Makan Siang (12:00 WIB)",
-        "menu": ["Nasi putih pulen hangat + sup wortel bayam + ayam suwir kukus", "Ikan nila/salmon kukus bumbu kunyit + tahu kukus", "Kentang tumbuk (mashed potato) + telur dadar minim minyak"],
-        "advice": "Kunyah makanan perlahan (minimal 20-30 kali). Hindari kopi dingin, minuman bersoda, dan gorengan pedas di kantin kampus saat istirahat kuliah."
-    },
-    "dinner": {
-        "title": "🌙 Waktunya Makan Malam (18:30 WIB)",
-        "menu": ["Sup labu siam / wortel hangat + tempe bacem panggang", "Nasi tim ayam jamur rendah lemak", "Bubur kacang hijau kuah santan sangat encer/tanpa santan"],
-        "advice": "Beri jeda minimal 2-3 jam antara makan malam dan waktu tidur agar asam lambung tidak naik kembali ke esofagus (mencegah reflux/GERD)."
-    }
-}
+# Dibangun sekali saat import. Environment sudah final di titik ini, jadi judul
+# pesan selalu mengikuti MEAL_*_TIME dari .env / Railway Variables dan tidak
+# bisa lagi tertinggal dari jam yang benar-benar dipakai CronTrigger.
+MEAL_TEMPLATES = reminder_config.build_templates()
 
 
 def build_reset_otp_message(user_name: str, otp_code: str, expire_minutes: int) -> str:
@@ -119,37 +107,29 @@ def trigger_scheduled_broadcast(meal_key: str):
 # Zona waktu acuan pengingat. Wajib dipakai eksplisit di setiap CronTrigger:
 # CronTrigger tanpa `timezone` memakai zona waktu lokal server (Railway = UTC),
 # sehingga jadwal 07:30 akan terkirim 14:30 WIB.
-SCHEDULER_TIMEZONE = "Asia/Jakarta"
+JOB_NAMES = {
+    "breakfast": "Pengingat Sarapan Sobat Lambung",
+    "lunch": "Pengingat Makan Siang Sobat Lambung",
+    "dinner": "Pengingat Makan Malam Sobat Lambung",
+}
 
 
 def init_scheduler():
-    scheduler = BackgroundScheduler(timezone=SCHEDULER_TIMEZONE)
+    scheduler = BackgroundScheduler(timezone=reminder_config.MEAL_TIMEZONE)
 
-    scheduler.add_job(
-        trigger_scheduled_broadcast,
-        CronTrigger(hour=7, minute=30, timezone=SCHEDULER_TIMEZONE),
-        args=["breakfast"],
-        id="alarm_breakfast",
-        name="Pengingat Sarapan Sobat Lambung",
-        replace_existing=True
-    )
-
-    scheduler.add_job(
-        trigger_scheduled_broadcast,
-        CronTrigger(hour=12, minute=0, timezone=SCHEDULER_TIMEZONE),
-        args=["lunch"],
-        id="alarm_lunch",
-        name="Pengingat Makan Siang Sobat Lambung",
-        replace_existing=True
-    )
-
-    scheduler.add_job(
-        trigger_scheduled_broadcast,
-        CronTrigger(hour=18, minute=30, timezone=SCHEDULER_TIMEZONE),
-        args=["dinner"],
-        id="alarm_dinner",
-        name="Pengingat Makan Malam Sobat Lambung",
-        replace_existing=True
-    )
+    for meal_key in MEAL_ORDER:
+        hour, minute = reminder_config.hour_minute(meal_key)
+        scheduler.add_job(
+            trigger_scheduled_broadcast,
+            CronTrigger(
+                hour=hour,
+                minute=minute,
+                timezone=reminder_config.MEAL_TIMEZONE,
+            ),
+            args=[meal_key],
+            id=f"alarm_{meal_key}",
+            name=JOB_NAMES[meal_key],
+            replace_existing=True,
+        )
 
     return scheduler

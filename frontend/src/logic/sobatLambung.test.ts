@@ -5,6 +5,7 @@ import {
   validatePassword,
   generateWhatsAppReminderMessage,
   getNextStaticAlarm,
+  applyScheduleOverride,
   STATIC_SCHEDULES
 } from './sobatLambung';
 
@@ -63,4 +64,46 @@ test('getNextStaticAlarm returns appropriate upcoming time', () => {
   // At 21:00, wraps to breakfast tomorrow
   const alarm4 = getNextStaticAlarm(21, 0);
   assert.equal(alarm4.id, 'breakfast');
+});
+
+test('applyScheduleOverride replaces time from backend but keeps local copy', () => {
+  const updated = applyScheduleOverride(STATIC_SCHEDULES, [
+    { id: 'breakfast', time: '06:15 WIB' },
+    { id: 'lunch', time: '12:45 WIB' },
+  ]);
+
+  const breakfast = updated.find((s) => s.id === 'breakfast')!;
+  assert.equal(breakfast.time, '06:15 WIB');
+  assert.equal(breakfast.hour, 6);
+  assert.equal(breakfast.minute, 15);
+  // Label & menu lokal tidak ikut ditimpa
+  assert.equal(breakfast.label, 'Sarapan Pagi Ramah Lambung');
+
+  const lunch = updated.find((s) => s.id === 'lunch')!;
+  assert.equal(lunch.time, '12:45 WIB');
+  assert.equal(lunch.hour, 12);
+  assert.equal(lunch.minute, 45);
+
+  // Item yang tidak ada di payload tetap memakai nilai lokal
+  const dinner = updated.find((s) => s.id === 'dinner')!;
+  assert.equal(dinner.time, '18:30 WIB');
+});
+
+test('applyScheduleOverride ignores malformed or empty payload', () => {
+  assert.deepEqual(applyScheduleOverride(STATIC_SCHEDULES, []), STATIC_SCHEDULES);
+
+  const withBadTime = applyScheduleOverride(STATIC_SCHEDULES, [
+    { id: 'breakfast', time: 'bukan-jam' },
+  ]);
+  assert.equal(withBadTime.find((s) => s.id === 'breakfast')!.time, '07:30 WIB');
+});
+
+test('generateWhatsAppReminderMessage respects overridden schedules', () => {
+  const schedules = applyScheduleOverride(STATIC_SCHEDULES, [
+    { id: 'breakfast', time: '08:00 WIB' },
+  ]);
+  const msg = generateWhatsAppReminderMessage('Ivano', 'breakfast', schedules);
+
+  assert.ok(msg.includes('08:00 WIB'));
+  assert.ok(!msg.includes('07:30 WIB'));
 });

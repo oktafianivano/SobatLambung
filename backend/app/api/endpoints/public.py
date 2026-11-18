@@ -1,5 +1,7 @@
 from fastapi import APIRouter
 
+from app.reminder_config import reminder_config
+
 router = APIRouter()
 
 @router.get("/")
@@ -39,8 +41,6 @@ def get_education_content():
 
 @router.get("/schedules")
 def get_static_schedules():
-    return [
-        {"id": "breakfast", "time": "07:30 WIB", "label": "Sarapan Sehat", "description": "Menetralkan asam lambung pagi hari."},
-        {"id": "lunch", "time": "12:00 WIB", "label": "Makan Siang Teratur", "description": "Mengisi energi dan istirahat kuliah."},
-        {"id": "dinner", "time": "18:30 WIB", "label": "Makan Malam Tepat Waktu", "description": "Memberi jeda aman sebelum tidur malam."}
-    ]
+    """Jadwal pengingat aktif. Sumbernya ``app.reminder_config`` supaya
+    frontend selalu menampilkan jam yang sama dengan yang dipakai scheduler."""
+    return reminder_config.schedules_payload()
