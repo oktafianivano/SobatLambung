@@ -17,9 +17,9 @@ from typing import Dict, List, Tuple
 
 # ===================== PENGATURAN JAM =====================
 # Format HH:MM (24 jam). Contoh: "07:30", "12:00", "18:30".
-BREAKFAST_TIME = "23:55"
-LUNCH_TIME = "23:57"
-DINNER_TIME = "23:59"
+BREAKFAST_TIME = "07:30"
+LUNCH_TIME = "12:00"
+DINNER_TIME = "18:30"
 
 # Zona waktu jadwal. "Asia/Jakarta" akan ditampilkan sebagai "WIB".
 TIMEZONE = "Asia/Jakarta"
