@@ -9,13 +9,12 @@ WORKDIR /app
 # psycopg2 butuh kompiler + header libpq saat build; libpq5 tetap dipasang
 # untuk runtime agar tidak ikut terhapus oleh autoremove.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends build-essential libpq-dev \
+    && apt-get install -y --no-install-recommends build-essential libpq-dev libpq5 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt \
     && apt-get purge -y --auto-remove build-essential libpq-dev \
-    && apt-get install -y --no-install-recommends libpq \
     && rm -rf /var/lib/apt/lists/*
 
 COPY app ./app
