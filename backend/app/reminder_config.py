@@ -1,26 +1,29 @@
 """Satu sumber kebenaran untuk jadwal & konten pengingat makan.
 
-Jam pengingat, zona waktu, dan teks pesan diambil dari modul ini supaya
-scheduler backend dan endpoint API tidak pernah berbeda. Frontend mengambil
-jam dari ``/api/v1/schedules`` yang juga membaca modul ini.
+UBAH JAM PENGINGAT HANYA DI BLOK ``PENGATURAN JAM`` DI BAWAH.
 
-Ubah jam lewat environment variable (lihat ``.env.example``)::
+Nilai di sini dipakai oleh:
 
-    MEAL_BREAKFAST_TIME=07:30
-    MEAL_LUNCH_TIME=12:00
-    MEAL_DINNER_TIME=18:30
-    MEAL_TIMEZONE=Asia/Jakarta
+- ``app.scheduler`` -> waktu CronTrigger pengiriman WhatsApp
+- judul pesan WhatsApp (otomatis mengikuti jam di sini)
+- ``GET /api/v1/schedules`` -> dibaca frontend untuk tampilan dashboard
 
-Catatan desain: template pesan dibangun lewat method, bukan disimpan sebagai
-atribut kelas. Kalau disimpan sebagai atribut, judul pesan akan terkunci pada
-nilai default saat class dibuat dan tidak ikut berubah ketika env di-override
-(inilah sumber bug "07:30 WIB" yang terkirim jam 14:30).
+Tidak ada environment variable untuk jam. Kalau ingin mengubah jadwal,
+edit konstanta di bawah lalu deploy ulang. Dengan begitu hanya ada satu
+tempat yang bisa jadi sumber kebenaran.
 """
 
 from typing import Dict, List, Tuple
 
-from pydantic import field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+# ===================== PENGATURAN JAM =====================
+# Format HH:MM (24 jam). Contoh: "07:30", "12:00", "18:30".
+BREAKFAST_TIME = "07:30"
+LUNCH_TIME = "12:00"
+DINNER_TIME = "18:30"
+
+# Zona waktu jadwal. "Asia/Jakarta" akan ditampilkan sebagai "WIB".
+TIMEZONE = "Asia/Jakarta"
+# ==========================================================
 
 MEAL_ORDER: Tuple[str, ...] = ("breakfast", "lunch", "dinner")
 
@@ -73,36 +76,50 @@ MEAL_CONTENT: Dict[str, Dict[str, object]] = {
 }
 
 
-class ReminderConfig(BaseSettings):
-    """Jadwal pengingat makan yang bisa diatur lewat environment variable."""
+def _normalize_hhmm(raw: str, field_label: str) -> str:
+    """Validasi & rapikan ``H:MM`` menjadi ``HH:MM``.
 
-    MEAL_BREAKFAST_TIME: str = "07:30"
-    MEAL_LUNCH_TIME: str = "12:00"
-    MEAL_DINNER_TIME: str = "18:30"
-    MEAL_TIMEZONE: str = "Asia/Jakarta"
+    Sengaja fail-fast saat modul di-import supaya salah ketik (mis. ``7.30``
+    atau ``25:99``) langsung kelihatan di log deploy, bukan diam-diam
+    menggeser jadwal seperti bug sebelumnya.
+    """
+    text = str(raw).strip()
+    parts = text.split(":")
+    if len(parts) != 2:
+        raise ValueError(
+            f"{field_label} harus berformat HH:MM (contoh 07:30), bukan '{text}'"
+        )
+    try:
+        hour, minute = int(parts[0]), int(parts[1])
+    except ValueError as exc:
+        raise ValueError(
+            f"{field_label} harus berformat HH:MM (contoh 07:30), bukan '{text}'"
+        ) from exc
+    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+        raise ValueError(
+            f"{field_label} di luar rentang 00:00-23:59: '{text}'"
+        )
+    return f"{hour:02d}:{minute:02d}"
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    @field_validator(
-        "MEAL_BREAKFAST_TIME", "MEAL_LUNCH_TIME", "MEAL_DINNER_TIME"
-    )
-    @classmethod
-    def _normalize_hhmm(cls, value: str) -> str:
-        raw = str(value).strip()
-        parts = raw.split(":")
-        if len(parts) != 2:
-            raise ValueError(
-                f"Jam '{raw}' harus berformat HH:MM (contoh 07:30)"
-            )
-        try:
-            hour, minute = int(parts[0]), int(parts[1])
-        except ValueError as exc:
-            raise ValueError(
-                f"Jam '{raw}' harus berformat HH:MM (contoh 07:30)"
-            ) from exc
-        if not (0 <= hour <= 23 and 0 <= minute <= 59):
-            raise ValueError(f"Jam '{raw}' di luar rentang 00:00-23:59")
-        return f"{hour:02d}:{minute:02d}"
+class ReminderConfig:
+    """Jadwal pengingat makan.
+
+    Parameter hanya dipakai untuk pengujian; pemakaian normal cukup memakai
+    instance ``reminder_config`` yang membaca konstanta di atas.
+    """
+
+    def __init__(
+        self,
+        breakfast: str = BREAKFAST_TIME,
+        lunch: str = LUNCH_TIME,
+        dinner: str = DINNER_TIME,
+        timezone: str = TIMEZONE,
+    ) -> None:
+        self.MEAL_BREAKFAST_TIME = _normalize_hhmm(breakfast, "BREAKFAST_TIME")
+        self.MEAL_LUNCH_TIME = _normalize_hhmm(lunch, "LUNCH_TIME")
+        self.MEAL_DINNER_TIME = _normalize_hhmm(dinner, "DINNER_TIME")
+        self.MEAL_TIMEZONE = timezone
 
     @property
     def meal_times(self) -> Dict[str, str]:

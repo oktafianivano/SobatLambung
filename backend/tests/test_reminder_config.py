@@ -1,11 +1,16 @@
 import pytest
-from pydantic import ValidationError
 
-from app.reminder_config import ReminderConfig
+from app.reminder_config import (
+    BREAKFAST_TIME,
+    DINNER_TIME,
+    LUNCH_TIME,
+    ReminderConfig,
+    reminder_config,
+)
 
 
 def test_time_is_normalized_and_reflected_in_title():
-    config = ReminderConfig(MEAL_BREAKFAST_TIME="6:15")
+    config = ReminderConfig(breakfast="6:15")
 
     assert config.MEAL_BREAKFAST_TIME == "06:15"
     assert config.hour_minute("breakfast") == (6, 15)
@@ -13,19 +18,15 @@ def test_time_is_normalized_and_reflected_in_title():
 
 
 def test_invalid_time_is_rejected_with_clear_message():
-    with pytest.raises(ValidationError):
-        ReminderConfig(MEAL_LUNCH_TIME="25:99")
+    with pytest.raises(ValueError, match="di luar rentang"):
+        ReminderConfig(lunch="25:99")
 
-    with pytest.raises(ValidationError):
-        ReminderConfig(MEAL_DINNER_TIME="18.30.00")
+    with pytest.raises(ValueError, match="HH:MM"):
+        ReminderConfig(dinner="18.30.00")
 
 
 def test_schedules_payload_uses_configured_times():
-    config = ReminderConfig(
-        MEAL_BREAKFAST_TIME="07:30",
-        MEAL_LUNCH_TIME="12:00",
-        MEAL_DINNER_TIME="18:30",
-    )
+    config = ReminderConfig(breakfast="07:30", lunch="12:00", dinner="18:30")
 
     payload = config.schedules_payload()
 
@@ -37,8 +38,8 @@ def test_schedules_payload_uses_configured_times():
     ]
 
 
-def test_templates_follow_configured_time_not_default():
-    config = ReminderConfig(MEAL_DINNER_TIME="19:45")
+def test_templates_follow_configured_time_not_hardcoded_string():
+    config = ReminderConfig(dinner="19:45")
 
     templates = config.build_templates()
 
@@ -47,5 +48,14 @@ def test_templates_follow_configured_time_not_default():
 
 
 def test_timezone_label_for_jakarta_and_other_zones():
-    assert ReminderConfig(MEAL_TIMEZONE="Asia/Jakarta").timezone_label == "WIB"
-    assert ReminderConfig(MEAL_TIMEZONE="Asia/Tokyo").timezone_label == "Asia/Tokyo"
+    assert ReminderConfig(timezone="Asia/Jakarta").timezone_label == "WIB"
+    assert ReminderConfig(timezone="Asia/Tokyo").timezone_label == "Asia/Tokyo"
+
+
+def test_default_config_uses_module_constants():
+    """Instance global harus membaca konstanta di blok PENGATURAN JAM."""
+    assert reminder_config.meal_times == {
+        "breakfast": BREAKFAST_TIME,
+        "lunch": LUNCH_TIME,
+        "dinner": DINNER_TIME,
+    }
