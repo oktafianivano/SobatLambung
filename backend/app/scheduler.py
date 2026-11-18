@@ -116,12 +116,18 @@ def trigger_scheduled_broadcast(meal_key: str):
     finally:
         db.close()
 
+# Zona waktu acuan pengingat. Wajib dipakai eksplisit di setiap CronTrigger:
+# CronTrigger tanpa `timezone` memakai zona waktu lokal server (Railway = UTC),
+# sehingga jadwal 07:30 akan terkirim 14:30 WIB.
+SCHEDULER_TIMEZONE = "Asia/Jakarta"
+
+
 def init_scheduler():
-    scheduler = BackgroundScheduler(timezone="Asia/Jakarta")
+    scheduler = BackgroundScheduler(timezone=SCHEDULER_TIMEZONE)
 
     scheduler.add_job(
         trigger_scheduled_broadcast,
-        CronTrigger(hour=7, minute=30),
+        CronTrigger(hour=7, minute=30, timezone=SCHEDULER_TIMEZONE),
         args=["breakfast"],
         id="alarm_breakfast",
         name="Pengingat Sarapan Sobat Lambung",
@@ -130,7 +136,7 @@ def init_scheduler():
 
     scheduler.add_job(
         trigger_scheduled_broadcast,
-        CronTrigger(hour=12, minute=0),
+        CronTrigger(hour=12, minute=0, timezone=SCHEDULER_TIMEZONE),
         args=["lunch"],
         id="alarm_lunch",
         name="Pengingat Makan Siang Sobat Lambung",
@@ -139,7 +145,7 @@ def init_scheduler():
 
     scheduler.add_job(
         trigger_scheduled_broadcast,
-        CronTrigger(hour=18, minute=30),
+        CronTrigger(hour=18, minute=30, timezone=SCHEDULER_TIMEZONE),
         args=["dinner"],
         id="alarm_dinner",
         name="Pengingat Makan Malam Sobat Lambung",
