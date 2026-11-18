@@ -15,7 +15,7 @@ RUN apt-get update \
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt \
     && apt-get purge -y --auto-remove build-essential libpq-dev \
-    && apt-get install -y --no-install-recommends libpq5 \
+    && apt-get install -y --no-install-recommends libpq \
     && rm -rf /var/lib/apt/lists/*
 
 COPY app ./app
