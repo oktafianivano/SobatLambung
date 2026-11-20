@@ -8,6 +8,7 @@ from app.models import User
 from app.config import settings
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from app.reminder_config import MEAL_ORDER, reminder_config
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("sobat_lambung_scheduler")
@@ -31,6 +32,10 @@ MEAL_TEMPLATES = {
         "advice": "Beri jeda minimal 2-3 jam antara makan malam dan waktu tidur agar asam lambung tidak naik kembali ke esofagus (mencegah reflux/GERD)."
     }
 }
+# Dibangun sekali saat import. Environment sudah final di titik ini, jadi judul
+# pesan selalu mengikuti MEAL_*_TIME dari .env / Railway Variables dan tidak
+# bisa lagi tertinggal dari jam yang benar-benar dipakai CronTrigger.
+MEAL_TEMPLATES = reminder_config.build_templates()
 
 
 def build_reset_otp_message(user_name: str, otp_code: str, expire_minutes: int) -> str:
@@ -120,34 +125,32 @@ def trigger_scheduled_broadcast(meal_key: str):
     finally:
         db.close()
 
+# Zona waktu acuan pengingat. Wajib dipakai eksplisit di setiap CronTrigger:
+# CronTrigger tanpa `timezone` memakai zona waktu lokal server (Railway = UTC),
+# sehingga jadwal 07:30 akan terkirim 14:30 WIB.
+JOB_NAMES = {
+    "breakfast": "Pengingat Sarapan Sobat Lambung",
+    "lunch": "Pengingat Makan Siang Sobat Lambung",
+    "dinner": "Pengingat Makan Malam Sobat Lambung",
+}
+
+
 def init_scheduler():
-    scheduler = BackgroundScheduler(timezone="Asia/Jakarta")
+    scheduler = BackgroundScheduler(timezone=reminder_config.MEAL_TIMEZONE)
 
-    scheduler.add_job(
-        trigger_scheduled_broadcast,
-        CronTrigger(hour=7, minute=30),
-        args=["breakfast"],
-        id="alarm_breakfast",
-        name="Pengingat Sarapan Sobat Lambung",
-        replace_existing=True
-    )
-
-    scheduler.add_job(
-        trigger_scheduled_broadcast,
-        CronTrigger(hour=12, minute=0),
-        args=["lunch"],
-        id="alarm_lunch",
-        name="Pengingat Makan Siang Sobat Lambung",
-        replace_existing=True
-    )
-
-    scheduler.add_job(
-        trigger_scheduled_broadcast,
-        CronTrigger(hour=18, minute=30),
-        args=["dinner"],
-        id="alarm_dinner",
-        name="Pengingat Makan Malam Sobat Lambung",
-        replace_existing=True
-    )
+    for meal_key in MEAL_ORDER:
+        hour, minute = reminder_config.hour_minute(meal_key)
+        scheduler.add_job(
+            trigger_scheduled_broadcast,
+            CronTrigger(
+                hour=hour,
+                minute=minute,
+                timezone=reminder_config.MEAL_TIMEZONE,
+            ),
+            args=[meal_key],
+            id=f"alarm_{meal_key}",
+            name=JOB_NAMES[meal_key],
+            replace_existing=True,
+        )
 
     return scheduler

@@ -59,6 +59,54 @@ export const STATIC_SCHEDULES: ScheduleItem[] = [
   },
 ];
 
+/** Payload satu jadwal dari endpoint `/schedules` backend. */
+export interface ScheduleApiItem {
+  id: string;
+  time: string;
+  label?: string;
+  description?: string;
+}
+
+function parseHourMinute(raw: string): { hour: number; minute: number } | null {
+  const match = /(\d{1,2})\s*[:.]\s*(\d{2})/.exec(raw ?? '');
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+  return { hour, minute };
+}
+
+/**
+ * Menimpa jam jadwal lokal dengan jam terbaru dari backend.
+ *
+ * Hanya `time`, `hour`, dan `minute` yang diambil dari API. Label, menu, dan
+ * catatan medis tetap versi lokal agar teks UI tidak ikut berubah saat backend
+ * hanya mengganti jam. Item yang tidak dikenali dibiarkan apa adanya.
+ */
+export function applyScheduleOverride(
+  base: ScheduleItem[],
+  remoteItems: ScheduleApiItem[],
+): ScheduleItem[] {
+  if (!Array.isArray(remoteItems) || remoteItems.length === 0) return base;
+  const byId = new Map(remoteItems.map((item) => [item.id, item]));
+
+  return base.map((schedule) => {
+    const remote = byId.get(schedule.id);
+    if (!remote?.time) return schedule;
+
+    const parsed = parseHourMinute(remote.time);
+    if (!parsed) return schedule;
+
+    return {
+      ...schedule,
+      time: remote.time.trim(),
+      hour: parsed.hour,
+      minute: parsed.minute,
+    };
+  });
+}
+
 /**
  * Normalizes Indonesian WhatsApp numbers to 628... format.
  */
@@ -114,8 +162,13 @@ export function validatePassword(password: string): { isValid: boolean; error?: 
 /**
  * Formats a WhatsApp message exactly as dispatched by Fonnte to students.
  */
-export function generateWhatsAppReminderMessage(userName: string, scheduleId: 'breakfast' | 'lunch' | 'dinner'): string {
-  const schedule = STATIC_SCHEDULES.find((s) => s.id === scheduleId) || STATIC_SCHEDULES[0];
+export function generateWhatsAppReminderMessage(
+  userName: string,
+  scheduleId: 'breakfast' | 'lunch' | 'dinner',
+  schedules: ScheduleItem[] = STATIC_SCHEDULES,
+): string {
+  const schedule =
+    schedules.find((s) => s.id === scheduleId) || schedules[0] || STATIC_SCHEDULES[0];
   const menuList = schedule.recommendedMenus.map((m) => `  • ${m}`).join('\n');
 
   return `Halo *${userName}*! 👋
@@ -135,14 +188,18 @@ _Tetap konsisten jaga jam makan di tengah padatnya kuliah & praktikum ya!_ ✨`;
 /**
  * Calculates current meal status or next upcoming static alarm.
  */
-export function getNextStaticAlarm(currentHour: number, currentMinute: number): ScheduleItem {
+export function getNextStaticAlarm(
+  currentHour: number,
+  currentMinute: number,
+  schedules: ScheduleItem[] = STATIC_SCHEDULES,
+): ScheduleItem {
   const nowMinutes = currentHour * 60 + currentMinute;
-  for (const item of STATIC_SCHEDULES) {
+  for (const item of schedules) {
     const itemMinutes = item.hour * 60 + item.minute;
     if (itemMinutes > nowMinutes) {
       return item;
     }
   }
   // Default wrap around to tomorrow breakfast
-  return STATIC_SCHEDULES[0];
+  return schedules[0] || STATIC_SCHEDULES[0];
 }

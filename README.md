@@ -7,7 +7,7 @@ Sobat Lambung adalah aplikasi web edukasi seputar Gastritis dan GERD, dilengkapi
 - **Edukasi & Informasi**: Artikel dan panduan seputar kesehatan lambung, Gastritis, dan GERD.
 - **Sistem Autentikasi (JWT)**: Registrasi dan Login pengguna yang aman.
 - **Dashboard Pengguna**: Manajemen profil dan pengaturan pengingat.
-- **Pengingat Makan Otomatis**: Notifikasi WhatsApp yang dikirimkan 3x sehari (07:30, 12:00, 18:30 WIB) menggunakan APScheduler.
+- **Pengingat Makan Otomatis**: Notifikasi WhatsApp yang dikirimkan 3x sehari (default 07:30, 12:00, 18:30 WIB) menggunakan APScheduler. Jam diatur di satu tempat, yaitu `backend/app/reminder_config.py` (blok `PENGATURAN JAM`) — scheduler dan tampilan frontend ikut menyesuaikan otomatis.
 
 ## 🛠️ Teknologi yang Digunakan
 
@@ -83,6 +83,9 @@ RATE_LIMIT_ENABLED=true
 
 # Admin Tools (WAJIB diganti dengan kunci acak sebelum dipakai publik)
 ADMIN_API_KEY=kunci_admin_anda
+
+# Jadwal Pengingat Makan TIDAK lewat .env
+# Ubah di: backend/app/reminder_config.py -> blok "PENGATURAN JAM"
 
 # CORS (pisahkan dengan koma; sesuaikan IP LAN Anda)
 CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000

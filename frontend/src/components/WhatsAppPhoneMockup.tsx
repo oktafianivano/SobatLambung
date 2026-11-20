@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { generateWhatsAppReminderMessage, STATIC_SCHEDULES } from '../logic/sobatLambung';
+import { useSchedules } from '../hooks/useSchedules';
+import { generateWhatsAppReminderMessage } from '../logic/sobatLambung';
 import { Send, CheckCheck, Smartphone, ShieldCheck, RefreshCw, AlertCircle, Sparkles } from 'lucide-react';
 
 interface WhatsAppPhoneMockupProps {
@@ -13,18 +14,14 @@ export const WhatsAppPhoneMockup: React.FC<WhatsAppPhoneMockupProps> = ({
   isAlarmActive,
   userPhone,
 }) => {
+  const schedules = useSchedules();
   const [selectedMeal, setSelectedMeal] = useState<'breakfast' | 'lunch' | 'dinner'>('breakfast');
-  const [simulatedMessages, setSimulatedMessages] = useState<
-    { id: string; time: string; text: string; meal: string }[]
-  >([
-    {
-      id: 'init-1',
-      time: '07:30',
-      text: generateWhatsAppReminderMessage(userName || 'Mahasiswa', 'breakfast'),
-      meal: 'breakfast',
-    },
-  ]);
   const [notice, setNotice] = useState<string | null>(null);
+
+  const selectedSchedule =
+    schedules.find((sched) => sched.id === selectedMeal) ?? schedules[0];
+  // Bubble chat WhatsApp hanya menampilkan jam, tanpa label zona waktu.
+  const bubbleTime = selectedSchedule.time.replace(/\s*WIB\s*$/i, '');
 
   return (
     <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-6">
@@ -71,7 +68,7 @@ export const WhatsAppPhoneMockup: React.FC<WhatsAppPhoneMockupProps> = ({
       {/* Select Meal template tabs */}
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs font-bold text-slate-500">Pilih Jadwal Medis:</span>
-        {STATIC_SCHEDULES.map((sched) => (
+        {schedules.map((sched) => (
           <button
             key={sched.id}
             onClick={() => setSelectedMeal(sched.id)}
@@ -121,20 +118,15 @@ export const WhatsAppPhoneMockup: React.FC<WhatsAppPhoneMockupProps> = ({
               🔒 Pesan dikirim otomatis terjadwal oleh server Sobat Lambung via WhatsApp Gateway.
             </div>
 
-            {simulatedMessages.map((msg) => (
-              <div
-                key={msg.id}
-                className="bg-white rounded-lg p-3 max-w-[92%] shadow-xs ml-auto border border-slate-200/50 space-y-2"
-              >
-                <div className="whitespace-pre-line text-slate-800 leading-relaxed font-sans">
-                  {msg.text}
-                </div>
-                <div className="flex items-center justify-end gap-1 text-[10px] text-slate-400">
-                  <span>{msg.time}</span>
-                  <CheckCheck className="w-3.5 h-3.5 text-blue-500" />
-                </div>
+            <div className="bg-white rounded-lg p-3 max-w-[92%] shadow-xs ml-auto border border-slate-200/50 space-y-2">
+              <div className="whitespace-pre-line text-slate-800 leading-relaxed font-sans">
+                {generateWhatsAppReminderMessage(userName || 'Mahasiswa', selectedMeal, schedules)}
               </div>
-            ))}
+              <div className="flex items-center justify-end gap-1 text-[10px] text-slate-400">
+                <span>{bubbleTime}</span>
+                <CheckCheck className="w-3.5 h-3.5 text-blue-500" />
+              </div>
+            </div>
           </div>
 
           {/* Fake Input Bar */}
