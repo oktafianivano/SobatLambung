@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { QrCode, Scan, Sparkles, CheckCircle2, HeartPulse, ExternalLink, ShieldCheck } from 'lucide-react';
+import Qr from "../assets/qr-code.png"
 
 interface KeychainPreviewProps {
   onScanSuccess: () => void;
@@ -30,18 +31,9 @@ export const KeychainPreview: React.FC<KeychainPreviewProps> = ({ onScanSuccess 
             {/* QR Code Graphic */}
             <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100 mb-4">
               <div className="w-40 h-40 bg-white rounded-lg p-2 shadow-inner flex flex-col items-center justify-center">
-                 <div className="grid grid-cols-6 gap-1 w-32 h-32">
-                    {Array.from({ length: 36 }).map((_, i) => (
-                      <div
-                        key={i}
-                        className={`rounded-xs ${
-                          (i % 7 === 0 || i % 5 === 1 || i < 8 || i > 28)
-                            ? 'bg-slate-900'
-                            : 'bg-emerald-600/70'
-                        }`}
-                      />
-                    ))}
-                  </div>
+                 <div>
+                  <img src={Qr} />
+                 </div>
               </div>
             </div>
 

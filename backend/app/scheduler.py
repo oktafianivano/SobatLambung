@@ -6,23 +6,27 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models import User
 from app.config import settings
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("sobat_lambung_scheduler")
 
+WIB = ZoneInfo("Asia/Jakarta")
+
 MEAL_TEMPLATES = {
     "breakfast": {
-        "title": "🌅 Waktunya Sarapan Sehat (07:30 WIB)",
+        "title": f"🌅 Waktunya Sarapan Sehat ({datetime.now(WIB).strftime('%H:%M')} WIB)",
         "menu": ["Bubur ayam tanpa sambal / kuah kuning ringan", "Oatmeal dengan pisang matang & madu", "Roti gandum panggang + telur rebus"],
         "advice": "Jangan biarkan lambung kosong lebih dari 12 jam sejak malam. Asam lambung pagi hari dapat mengikis mukosa jika tidak dinetralisir sarapan rendah asam."
     },
     "lunch": {
-        "title": "☀️ Waktunya Makan Siang (12:00 WIB)",
+        "title": f"☀️ Waktunya Makan Siang ({datetime.now(WIB).strftime('%H:%M')} WIB)",
         "menu": ["Nasi putih pulen hangat + sup wortel bayam + ayam suwir kukus", "Ikan nila/salmon kukus bumbu kunyit + tahu kukus", "Kentang tumbuk (mashed potato) + telur dadar minim minyak"],
         "advice": "Kunyah makanan perlahan (minimal 20-30 kali). Hindari kopi dingin, minuman bersoda, dan gorengan pedas di kantin kampus saat istirahat kuliah."
     },
     "dinner": {
-        "title": "🌙 Waktunya Makan Malam (18:30 WIB)",
+        "title": f"🌙 Waktunya Makan Malam ({datetime.now(WIB).strftime('%H:%M')} WIB)",
         "menu": ["Sup labu siam / wortel hangat + tempe bacem panggang", "Nasi tim ayam jamur rendah lemak", "Bubur kacang hijau kuah santan sangat encer/tanpa santan"],
         "advice": "Beri jeda minimal 2-3 jam antara makan malam dan waktu tidur agar asam lambung tidak naik kembali ke esofagus (mencegah reflux/GERD)."
     }
