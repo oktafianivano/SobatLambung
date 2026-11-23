@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { QrCode, Scan, Sparkles, CheckCircle2, HeartPulse, ExternalLink, ShieldCheck } from 'lucide-react';
+import React from 'react';
+import { QrCode, CheckCircle2, Download, Link2 } from 'lucide-react';
 import Qr from "../assets/qr-code.png"
 
 interface KeychainPreviewProps {
@@ -7,6 +7,36 @@ interface KeychainPreviewProps {
 }
 
 export const KeychainPreview: React.FC<KeychainPreviewProps> = ({ onScanSuccess }) => {
+  const handleDownloadQr = () => {
+    const link = document.createElement("a");
+    link.href = Qr;
+    link.download = "sobat-lambung-qr.png";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleCopyLink = async () => {
+    const url = window.location.origin;
+
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = url;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textArea);
+      }
+      alert("Link berhasil disalin ke clipboard!");
+    } catch (error) {
+      console.error("Gagal menyalin:", error);
+      alert("Gagal menyalin. Silakan salin manual: " + url);
+    }
+  };
+
   return (
     <section className="space-y-6">
       <div className="border-b border-slate-200 pb-5">
@@ -27,48 +57,42 @@ export const KeychainPreview: React.FC<KeychainPreviewProps> = ({ onScanSuccess 
         <div className="lg:col-span-5 flex flex-col items-center">
           <div className="w-full max-w-72 bg-white rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-200 flex flex-col items-center text-center">
             <h3 className="font-bold text-slate-900 mb-4">Scan untuk Berbagi</h3>
-            
+
             {/* QR Code Graphic */}
             <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100 mb-4">
-              <div className="w-40 h-40 bg-white rounded-lg p-2 shadow-inner flex flex-col items-center justify-center">
-                 <div>
-                  <img src={Qr} />
-                 </div>
+              <div className="w-40 h-40 bg-white rounded-lg p-2 shadow-inner flex items-center justify-center overflow-hidden">
+                <img
+                  src={Qr}
+                  alt="QR Code Sobat Lambung"
+                  className="w-full h-full object-contain"
+                />
               </div>
             </div>
 
             <p className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider mb-2">
               SobatLambung.id
             </p>
+
             <button
-              onClick={() => {
-                const url = "http://192.168.18.28:3000/";
-                if (navigator.clipboard && navigator.clipboard.writeText) {
-                  navigator.clipboard.writeText(url).then(() => {
-                    alert("Link berhasil disalin ke clipboard!");
-                  }).catch(err => {
-                    console.error('Gagal menyalin:', err);
-                    alert("Gagal menyalin. Silakan salin manual: " + url);
-                  });
-                } else {
-                  // Fallback for older browsers
-                  const textArea = document.createElement("textarea");
-                  textArea.value = url;
-                  document.body.appendChild(textArea);
-                  textArea.select();
-                  try {
-                    document.execCommand('copy');
-                    alert("Link berhasil disalin (fallback mode)!");
-                  } catch (err) {
-                    alert("Gagal menyalin. Silakan salin manual: " + url);
-                  }
-                  document.body.removeChild(textArea);
-                }
-              }}
-              className="mt-2 text-xs font-semibold text-emerald-700 hover:underline cursor-pointer"
+              onClick={handleDownloadQr}
+              className="mt-2 w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold py-3 px-4 rounded-xl transition-colors cursor-pointer"
+              aria-label="Download barcode QR code"
             >
+              <Download className="w-4 h-4" />
+              Download Barcode
+            </button>
+
+            <button
+              onClick={handleCopyLink}
+              className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:underline cursor-pointer"
+            >
+              <Link2 className="w-3.5 h-3.5" />
               Salin Link Web
             </button>
+
+            <p className="mt-3 text-[10px] leading-relaxed text-slate-500">
+              Klik download untuk menyimpan gambar QR code ke perangkatmu.
+            </p>
           </div>
         </div>
 
