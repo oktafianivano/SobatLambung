@@ -1,6 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { apiUrl } from '../services/api';
+import { storeCsrfToken } from '../lib/api';
 import { UserProfile } from '../types';
 import { normalizeWhatsAppNumber, validatePassword } from '../logic/sobatLambung';
 import { PasswordInput } from './PasswordInput';
@@ -279,6 +280,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
       const data = await res.json();
 
+      if (res.ok) {
+        storeCsrfToken(data.csrf_token);
+      }
+
       // Akun belum diverifikasi
       if (res.status === 403 && mode === 'login') {
         startVerification(
@@ -350,6 +355,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       if (!res.ok) {
         throw new Error(data.detail || 'Terjadi kesalahan.');
       }
+
+      storeCsrfToken(data.csrf_token);
 
       if (!data.user) {
         throw new Error('Data pengguna tidak ditemukan pada respons server.');

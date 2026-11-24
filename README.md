@@ -77,9 +77,15 @@ FONNTE_API_URL=https://api.fonnte.com/send
 SECRET_KEY=buat_secret_key_yang_panjang_dan_acak_disini
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
-REFRESH_TOKEN_EXPIRE_DAYS=1
+# Sliding window: diperpanjang setiap kali sesi di-refresh.
+REFRESH_TOKEN_EXPIRE_DAYS=7
 # Rate limiting per IP; set false hanya saat load-test lokal
 RATE_LIMIT_ENABLED=true
+
+# Cookie autentikasi (lihat bagian Deploy Production untuk mode HTTPS)
+COOKIE_SECURE=false
+COOKIE_SAMESITE=auto
+COOKIE_DOMAIN=
 
 # Admin Tools (WAJIB diganti dengan kunci acak sebelum dipakai publik)
 ADMIN_API_KEY=kunci_admin_anda
@@ -100,7 +106,7 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
 **Versi API**: semua endpoint resmi berada di prefix `/api/v1` (terlihat di Swagger). Prefix lama `/api/...` tetap aktif sebagai alias kompatibilitas, tetapi tidak ditampilkan di dokumentasi.
 
-**Sesi login**: access token berlaku 30 menit dan diperbarui otomatis lewat refresh token (`POST /api/v1/auth/refresh`). Refresh token berlaku 1 hari; setelah kedaluwarsa pengguna harus login ulang.
+**Sesi login**: access token berlaku 30 menit. Sesi diperpanjang otomatis lewat refresh token (`POST /api/v1/auth/refresh`) atau endpoint pemulihan `GET /api/v1/auth/session` saat halaman dibuka/di-refresh. Refresh token memakai *sliding window* (default 7 hari): setiap kali diperbarui, masa berlakunya diperpanjang lagi. Pengguna hanya perlu login ulang jika refresh token benar-benar kedaluwarsa, logout, atau mengganti kata sandi.
 
 ### 4. Setup Frontend
 Buka terminal baru dan masuk ke folder `frontend`:
@@ -256,7 +262,7 @@ Beberapa hal yang sudah dijaga agar aman di HP:
 Cara cepat memeriksa: buka aplikasi di Chrome → tekan `F12` → klik ikon **Toggle device toolbar** (`Ctrl + Shift + M`) → pilih **iPhone SE (375px)** atau **Galaxy S8 (360px)**. Kalau tidak ada scroll ke samping dan semua tombol bisa diklik, tampilan sudah aman.
 
 ### 11. Lapisan Keamanan (Security Hardening)
-Aplikasi dilindungi berlapis tanpa membatasi CORS, sehingga tetap nyaman dipakai saat pameran di jaringan lokal yang IP-nya berubah-ubah.
+Aplikasi dilindungi berlapis. Di development, CORS menerima origin lokal/LAN secara otomatis; di production, `CORS_ORIGINS` wajib diisi dan hanya origin HTTPS yang diizinkan.
 
 | # | Lapisan | Fungsi |
 | --- | --- | --- |
@@ -330,6 +336,114 @@ SobatLambung/
 ├── LICENSE                    # Lisensi MIT
 └── README.md                  # Dokumentasi
 ```
+
+### 12. Deploy Production (HTTPS + Cookie Login)
+
+Bagian ini penting agar user **tidak ter-logout saat refresh browser** dan cookie tampil dengan centang **Secure** di DevTools.
+
+#### Penyebab umum token/cookie hilang saat refresh
+
+| Penyebab | Akibat |
+| --- | --- |
+| `APP_ENV` bukan `production` | Cookie tidak memakai flag `Secure`. |
+| Backend diakses lewat HTTP, bukan HTTPS | Browser membuang cookie `Secure`. |
+| Frontend & backend beda domain (mis. Vercel + Render) | Cookie dianggap third-party, diblokir browser. |
+| `COOKIE_SAMESITE=lax` pada beda site | Cookie tidak dikirim pada fetch lintas site. |
+| `COOKIE_DOMAIN` salah (URL/port/subdomain lain) | Browser menolak `Set-Cookie`. |
+| CSRF token hanya dibaca dari cookie | JavaScript beda origin tidak bisa membaca cookie API. |
+
+Backend sudah menangani dua skenario:
+
+1. **Same-origin / same-site (disarankan).** Frontend dan API berada di domain yang sama (atau subdomain dari parent domain yang sama). Nginx pada image frontend sudah mem-proxy `/api/` ke service `backend`, jadi `VITE_API_URL` cukup dikosongkan.
+2. **Beda origin.** `COOKIE_SAMESITE=auto` otomatis memakai `SameSite=None; Secure; Partitioned`, dan token CSRF juga dikirim di body response login/refresh agar tetap bisa dipakai JavaScript.
+
+> Rekomendasi terkuat: gunakan **satu domain** untuk frontend dan API. Safari dan sebagian browser tetap membatasi cookie third-party meskipun `SameSite=None`; same-origin menghilangkan masalah itu sepenuhnya.
+
+#### Opsi A — Same-origin (disarankan, Docker Compose)
+
+Root `.env` (dibaca `docker-compose.yml`):
+```env
+APP_ENV=production
+COOKIE_SECURE=true
+COOKIE_SAMESITE=auto
+COOKIE_DOMAIN=
+TRUST_PROXY_HEADERS=true
+VITE_API_URL=
+```
+
+`backend/.env`:
+```env
+APP_ENV=production
+SECRET_KEY=<acak-minimal-32-karakter>
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+REFRESH_TOKEN_EXPIRE_DAYS=7
+COOKIE_SECURE=true
+COOKIE_SAMESITE=auto
+COOKIE_DOMAIN=
+DATABASE_URL=postgresql://...
+FONNTE_TOKEN=...
+ADMIN_API_KEY=<kunci-acak>
+# WAJIB origin halaman yang dipakai browser (HTTPS)
+CORS_ORIGINS=https://sobatlambung.id
+```
+
+Jalankan:
+```bash
+docker compose up -d --build
+```
+Akses lewat **HTTPS** (mis. Cloudflare Tunnel / reverse proxy Caddy/Nginx yang menterminasi TLS). Pastikan proxy mengirim `X-Forwarded-Proto: https`; `TRUST_PROXY_HEADERS=true` membuat HSTS dan rate limit bekerja benar.
+
+#### Opsi B — Frontend & backend beda domain
+
+Root `.env`:
+```env
+APP_ENV=production
+COOKIE_SECURE=true
+COOKIE_SAMESITE=none
+COOKIE_DOMAIN=
+TRUST_PROXY_HEADERS=true
+VITE_API_URL=https://api.sobatlambung.id
+```
+
+`backend/.env`:
+```env
+APP_ENV=production
+COOKIE_SECURE=true
+COOKIE_SAMESITE=none
+COOKIE_DOMAIN=
+CORS_ORIGINS=https://sobatlambung.id
+```
+
+Catatan:
+- `COOKIE_DOMAIN` **jangan** diisi bila kedua host tidak berbagi parent domain.
+- Harus HTTPS di kedua sisi; `SameSite=None` tanpa `Secure` akan ditolak browser.
+- Token CSRF tetap bekerja karena frontend menyimpan `csrf_token` dari body response dan mengirimnya sebagai header `X-CSRF-Token`.
+
+#### Opsi C — Subdomain dari domain yang sama
+
+Contoh: frontend `https://sobatlambung.id`, API `https://api.sobatlambung.id`.
+
+```env
+COOKIE_SECURE=true
+COOKIE_SAMESITE=lax
+COOKIE_DOMAIN=.sobatlambung.id
+CORS_ORIGINS=https://sobatlambung.id
+VITE_API_URL=https://api.sobatlambung.id
+```
+
+`COOKIE_DOMAIN` harus berupa hostname parent tanpa `https://` dan tanpa port.
+
+#### Checklist setelah deploy
+
+1. Buka DevTools → **Application → Cookies**.
+2. Pastikan `access_token`, `refresh_token`, dan `csrf_token` memiliki:
+   - **Secure** ✓
+   - **HttpOnly** ✓ untuk `access_token` & `refresh_token`
+   - **SameSite** sesuai skenario (`Lax` untuk same-site, `None` untuk beda site)
+   - **Expires/Max-Age** terisi (bukan *Session*)
+3. Refresh halaman (F5) → user tetap login.
+4. Tunggu access token kedaluwarsa (atau hapus cookie `access_token` saja) → refresh halaman harus tetap login karena `GET /api/v1/auth/session` memperbarui sesi dari `refresh_token`.
+5. Jika masih logout: cek `CORS_ORIGINS` sama persis dengan origin di address bar (termasuk `https://` dan tanpa trailing slash).
 
 ## 📝 Lisensi
 Proyek ini dilisensikan di bawah **MIT License** — lihat file [LICENSE](LICENSE).

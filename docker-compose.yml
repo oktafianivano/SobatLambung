@@ -7,7 +7,13 @@ services:
     env_file:
       - ./backend/.env
     environment:
+      # Production defaults; nilai di backend/.env tetap menimpa default ini
+      # kecuali variabel di bawah (environment menang atas env_file).
       APP_ENV: ${APP_ENV:-production}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      COOKIE_SAMESITE: ${COOKIE_SAMESITE:-auto}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
+      TRUST_PROXY_HEADERS: ${TRUST_PROXY_HEADERS:-true}
     ports:
       - "8000:8000"
     restart: unless-stopped
@@ -16,7 +22,9 @@ services:
     build:
       context: ./frontend
       args:
-        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+        # Kosong = same-origin. Nginx meneruskan /api ke service backend,
+        # sehingga cookie login tetap first-party dan tidak hilang saat refresh.
+        VITE_API_URL: ${VITE_API_URL:-}
     ports:
       - "3000:80"
     depends_on:

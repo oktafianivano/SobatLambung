@@ -15,12 +15,27 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
 
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    REFRESH_TOKEN_EXPIRE_DAYS: int = 1
+    # Refresh token memakai sliding window: setiap kali /auth/refresh
+    # dipanggil, masa berlakunya diperpanjang lagi. Default 7 hari agar
+    # pengguna tidak terus-menerus diminta login ulang.
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     # Cookie security
+    # COOKIE_SECURE:
+    #   - None  -> otomatis: true di production, false di development
+    #   - true  -> paksa Secure (wajib untuk SameSite=None dan HTTPS)
+    #   - false -> hanya untuk development (ditolak di production)
     COOKIE_SECURE: Optional[bool] = None
-    COOKIE_SAMESITE: str = "lax"
+    # COOKIE_SAMESITE:
+    #   - "auto" -> pilih "lax" untuk same-site, "none" untuk cross-site
+    #   - "lax" / "strict" / "none"
+    # SameSite=None otomatis memakai Secure + Partitioned (CHIPS).
+    COOKIE_SAMESITE: str = "auto"
+    # Isi hanya bila frontend & backend berbagi parent domain,
+    # contoh: ".sobatlambung.id". Jangan isi IP/URL/port.
     COOKIE_DOMAIN: Optional[str] = None
+    # None -> otomatis (true saat SameSite=None).
+    COOKIE_PARTITIONED: Optional[bool] = None
 
     # Rate limiting
     RATE_LIMIT_ENABLED: bool = True
@@ -49,6 +64,10 @@ class Settings(BaseSettings):
     @classmethod
     def validate_app_env(cls, value: str) -> str:
         value = value.strip().lower()
+
+        # "test" adalah alias yang dipakai CI, samakan dengan "testing".
+        if value == "test":
+            return "testing"
 
         allowed = {"development", "testing", "production"}
 
@@ -87,14 +106,22 @@ class Settings(BaseSettings):
 
         return value
 
+    @field_validator("COOKIE_SECURE", "COOKIE_PARTITIONED", mode="before")
+    @classmethod
+    def empty_bool_to_none(cls, value):
+        if isinstance(value, str) and not value.strip():
+            return None
+
+        return value
+
     @field_validator("COOKIE_SAMESITE")
     @classmethod
     def validate_cookie_samesite(cls, value: str) -> str:
         value = value.strip().lower()
 
-        if value not in {"lax", "strict", "none"}:
+        if value not in {"auto", "lax", "strict", "none"}:
             raise ValueError(
-                "COOKIE_SAMESITE must be lax, strict, or none"
+                "COOKIE_SAMESITE must be auto, lax, strict, or none"
             )
 
         return value

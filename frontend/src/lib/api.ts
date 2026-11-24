@@ -2,6 +2,7 @@
 import { apiUrl } from '../services/api';
 
 const TAB_KEY = 'sobat_lambung_active_tab';
+const CSRF_KEY = 'sobat_lambung_csrf_token';
 
 export const SESSION_UPDATED_EVENT = 'sobatlambung:session-updated';
 export const SESSION_EXPIRED_EVENT = 'sobatlambung:session-expired';
@@ -20,23 +21,57 @@ export function getSavedActiveTab(): string | null {
   return localStorage.getItem(TAB_KEY);
 }
 
+export function storeCsrfToken(token: string | null | undefined) {
+  if (!hasStorage() || !token) return;
+  localStorage.setItem(CSRF_KEY, token);
+}
+
 export function clearSession() {
   if (!hasStorage()) return;
   localStorage.removeItem(TAB_KEY);
+  localStorage.removeItem(CSRF_KEY);
 }
 
 function getCsrfToken(): string | null {
-  if (typeof document === 'undefined') return null;
+  if (typeof document !== 'undefined') {
+    const cookie = document.cookie
+      .split('; ')
+      .find((item) => item.startsWith('csrf_token='));
 
-  const cookie = document.cookie
-    .split('; ')
-    .find((item) => item.startsWith('csrf_token='));
+    if (cookie) {
+      return decodeURIComponent(
+        cookie.substring('csrf_token='.length),
+      );
+    }
+  }
 
-  if (!cookie) return null;
+  // Deployment beda origin: cookie API tidak bisa dibaca JavaScript.
+  // Token dari body response login/refresh disimpan di localStorage.
+  if (hasStorage()) {
+    return localStorage.getItem(CSRF_KEY);
+  }
 
-  return decodeURIComponent(
-    cookie.substring('csrf_token='.length),
-  );
+  return null;
+}
+
+/**
+ * Simpan token CSRF yang dikirim server pada body response.
+ * Response asli tidak dikonsumsi karena memakai clone().
+ */
+async function captureCsrfToken(response: Response) {
+  const contentType = response.headers.get('content-type') ?? '';
+
+  if (!contentType.includes('application/json')) return;
+
+  try {
+    const data = await response.clone().json();
+
+    if (data && typeof data.csrf_token === 'string') {
+      storeCsrfToken(data.csrf_token);
+    }
+  } catch {
+    // Body bukan JSON / sudah dikonsumsi: abaikan.
+  }
 }
 
 function createHeaders(init: RequestInit = {}): Headers {
@@ -83,6 +118,8 @@ async function requestNewAccessToken(): Promise<RefreshResult> {
       headers: createHeaders({ method: 'POST' }),
     });
 
+    await captureCsrfToken(response);
+
     if (response.status === 401 || response.status === 403) {
       return { refreshed: false, expired: true };
     }
@@ -121,6 +158,7 @@ function isAuthEndpoint(path: string): boolean {
     '/auth/register/verify',
     '/auth/register/resend',
     '/auth/refresh',
+    '/auth/session',
     '/auth/logout',
     '/auth/forgot-password',
     '/auth/forgot-password/reset',
@@ -146,6 +184,8 @@ export async function apiFetch(
 
   let response = await request();
 
+  await captureCsrfToken(response);
+
   const shouldRefresh =
     useAuth &&
     retryOnUnauthorized &&
@@ -160,6 +200,7 @@ export async function apiFetch(
 
   if (refreshResult.refreshed) {
     response = await request();
+    await captureCsrfToken(response);
     return response;
   }
 

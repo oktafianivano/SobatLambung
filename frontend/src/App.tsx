@@ -35,26 +35,38 @@ export default function App() {
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
 
   // Validasi sesi melalui HttpOnly Cookie ketika aplikasi dibuka.
+  // Endpoint /auth/session otomatis memperpanjang sesi memakai refresh
+  // token bila access token sudah kedaluwarsa, jadi refresh browser tidak
+  // langsung memaksa user login ulang.
   useEffect(() => {
     let cancelled = false;
 
     const validateSession = async () => {
       try {
-        const response = await apiFetch('/user/profile');
+        const response = await apiFetch(
+          '/auth/session',
+          {},
+          { auth: false },
+        );
 
         if (!response.ok) {
-          if (!cancelled) {
+          if (
+            !cancelled &&
+            (response.status === 401 || response.status === 403)
+          ) {
             setCurrentUser(null);
             clearSession();
           }
           return;
         }
 
-        const user = (await response.json()) as UserProfile;
+        const data = (await response.json()) as {
+          user?: UserProfile;
+        };
 
-        if (cancelled) return;
+        if (cancelled || !data.user) return;
 
-        setCurrentUser(user);
+        setCurrentUser(data.user);
         setActiveTab(getSavedActiveTab() ?? 'dashboard');
       } catch {
         // Gangguan jaringan tidak otomatis menghapus sesi.

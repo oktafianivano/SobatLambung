@@ -163,9 +163,14 @@ def change_password(
 
     # Password fingerprint berubah, sehingga JWT lama tidak berlaku lagi.
     # Buat cookie autentikasi baru untuk browser saat ini.
-    _set_auth_cookies(response, current_user)
+    csrf_token = _set_auth_cookies(
+        response,
+        current_user,
+        request,
+    )
 
     return {
         "success": True,
         "message": "Kata sandi berhasil diperbarui.",
+        "csrf_token": csrf_token,
     }

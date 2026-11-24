@@ -640,3 +640,130 @@ def test_migration_enables_row_level_security():
         assert table in content
     # Hanya aktif untuk PostgreSQL, bukan SQLite/DB lain.
     assert "postgresql" in content
+
+
+# --------------------------------------------------------------------------- #
+# 9. Persistensi sesi & atribut cookie production
+# --------------------------------------------------------------------------- #
+def _login(client, no_wa="081234567890", password="rahasia123"):
+    return client.post(
+        "/api/v1/auth/login",
+        json={"no_wa": no_wa, "password": password},
+    )
+
+
+def test_login_returns_csrf_token_in_body(client, outbox):
+    _register_and_verify(client, outbox)
+
+    login = _login(client)
+    assert login.status_code == 200, login.text
+
+    body = login.json()
+    assert isinstance(body.get("csrf_token"), str)
+    assert body["csrf_token"]
+
+    # Token body harus sama dengan cookie CSRF yang di-set server.
+    assert client.cookies.get("csrf_token") == body["csrf_token"]
+
+
+def test_production_cookie_flags_are_secure(client, outbox, monkeypatch):
+    monkeypatch.setattr(settings, "APP_ENV", "production")
+    monkeypatch.setattr(settings, "COOKIE_SECURE", True)
+    monkeypatch.setattr(settings, "COOKIE_SAMESITE", "auto")
+    monkeypatch.setattr(settings, "COOKIE_DOMAIN", None)
+    monkeypatch.setattr(settings, "COOKIE_PARTITIONED", None)
+
+    _register_and_verify(client, outbox)
+    login = _login(client)
+    assert login.status_code == 200, login.text
+
+    set_cookie = login.headers.get("set-cookie", "").lower()
+
+    assert "secure" in set_cookie
+    assert "httponly" in set_cookie
+    assert "max-age=" in set_cookie
+    assert "expires=" in set_cookie
+    assert "samesite=lax" in set_cookie
+
+
+def test_cross_site_cookie_uses_samesite_none_and_partitioned(
+    client,
+    outbox,
+    monkeypatch,
+):
+    monkeypatch.setattr(settings, "APP_ENV", "production")
+    monkeypatch.setattr(settings, "COOKIE_SECURE", True)
+    monkeypatch.setattr(settings, "COOKIE_SAMESITE", "auto")
+    monkeypatch.setattr(settings, "COOKIE_DOMAIN", None)
+    monkeypatch.setattr(settings, "COOKIE_PARTITIONED", None)
+
+    _register_and_verify(client, outbox)
+
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"no_wa": "081234567890", "password": "rahasia123"},
+        headers={"origin": "https://frontend.example.com"},
+    )
+    assert login.status_code == 200, login.text
+
+    set_cookie = login.headers.get("set-cookie", "").lower()
+
+    assert "samesite=none" in set_cookie
+    assert "partitioned" in set_cookie
+    assert "secure" in set_cookie
+
+
+def test_session_endpoint_restores_access_from_refresh_cookie(client, outbox):
+    _register_and_verify(client, outbox)
+
+    login = _login(client)
+    assert login.status_code == 200, login.text
+
+    # Simulasikan access token hilang/kedaluwarsa; refresh token tetap ada.
+    client.cookies.delete("access_token")
+
+    restored = client.get("/api/v1/auth/session")
+
+    assert restored.status_code == 200, restored.text
+    assert restored.json()["user"]["no_wa_masked"] == "6281*****7890"
+
+    # Cookie access baru harus diterbitkan kembali.
+    assert client.cookies.get("access_token")
+
+
+def test_profile_auto_renews_expired_access_from_refresh(client, outbox):
+    _register_and_verify(client, outbox)
+
+    login = _login(client)
+    assert login.status_code == 200, login.text
+
+    client.cookies.delete("access_token")
+
+    profile = client.get("/api/v1/user/profile")
+
+    assert profile.status_code == 200, profile.text
+    assert profile.json()["no_wa_masked"] == "6281*****7890"
+    assert client.cookies.get("access_token")
+
+
+
+def test_refresh_accepts_csrf_from_body_when_cookie_unreadable(
+    client,
+    outbox,
+):
+    _register_and_verify(client, outbox)
+
+    login = _login(client)
+    assert login.status_code == 200, login.text
+    csrf_token = login.json()["csrf_token"]
+
+    # Deployment beda origin: JavaScript tidak bisa membaca cookie API.
+    client.cookies.delete("csrf_token")
+
+    refreshed = client.post(
+        "/api/v1/auth/refresh",
+        headers={"x-csrf-token": csrf_token},
+    )
+
+    assert refreshed.status_code == 200, refreshed.text
+    assert refreshed.json()["csrf_token"]

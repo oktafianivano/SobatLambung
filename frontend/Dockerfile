@@ -9,7 +9,8 @@ RUN npm ci
 COPY . .
 
 # URL backend ditanam saat build (Vite membaca env berawalan VITE_).
-ARG VITE_API_URL=http://localhost:8000
+# Kosongkan untuk deployment same-origin (nginx mem-proxy /api -> backend).
+ARG VITE_API_URL=
 ENV VITE_API_URL=$VITE_API_URL
 
 RUN npm run build

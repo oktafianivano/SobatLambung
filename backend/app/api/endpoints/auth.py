@@ -30,12 +30,23 @@ from app.auth import (
     verify_password,
     create_access_token,
     create_refresh_token,
+    decode_access_token,
     decode_refresh_token,
     password_fingerprint,
     create_csrf_token,
 )
 
 from app.config import settings
+
+from app.cookies import (
+    ACCESS_COOKIE_NAME,
+    CSRF_COOKIE_NAME,
+    REFRESH_COOKIE_NAME,
+    access_cookie_max_age,
+    cookie_expiry,
+    refresh_cookie_max_age,
+    resolve_cookie_policy,
+)
 
 from app.limiter import (
     LOGIN_LIMIT,
@@ -77,17 +88,9 @@ OTP_RESEND_COOLDOWN_SECONDS = 60
 OTP_MAX_ATTEMPTS = 5
 VERIFY_RESEND_MAX_PER_HOUR = 5
 
-ACCESS_COOKIE_NAME = "access_token"
-REFRESH_COOKIE_NAME = "refresh_token"
-CSRF_COOKIE_NAME = "csrf_token"
-
 INVALID_REFRESH_DETAIL = (
     "Sesi login berakhir. Silakan login ulang."
 )
-
-COOKIE_SECURE = settings.cookie_secure
-COOKIE_SAMESITE = settings.COOKIE_SAMESITE
-COOKIE_DOMAIN = settings.COOKIE_DOMAIN
 
 
 # ---------------------------------------------------------
@@ -117,26 +120,74 @@ def _serialize_user(user_obj: User) -> dict:
     }
 
 
-def _auth_response(user_obj: User) -> dict:
-    return {
+def _auth_response(
+    user_obj: User,
+    csrf_token: str | None = None,
+) -> dict:
+    body = {
         "success": True,
         "message": "Autentikasi berhasil.",
         "user": _serialize_user(user_obj),
     }
+
+    # Token CSRF juga dikirim lewat body. Frontend yang berjalan di
+    # origin berbeda tidak bisa membaca cookie API lewat document.cookie,
+    # sehingga token ini disimpan frontend dan dikirim ulang sebagai
+    # header X-CSRF-Token.
+    if csrf_token:
+        body["csrf_token"] = csrf_token
+
+    return body
 
 
 # ---------------------------------------------------------
 # Cookie management
 # ---------------------------------------------------------
 
+def _mark_partitioned(response: Response) -> None:
+    """Tambahkan atribut ``Partitioned`` (CHIPS) secara manual.
+
+    Starlette baru mendukung parameter ``partitioned`` di Python 3.14,
+    sedangkan image produksi memakai Python 3.11. Atribut ini diperlukan
+    agar browser modern tetap mengirim cookie SameSite=None pada
+    deployment frontend/backend yang berbeda site.
+    """
+
+    cookie_headers = response.headers.getlist("set-cookie")
+
+    if not cookie_headers:
+        return
+
+    del response.headers["set-cookie"]
+
+    prefixes = (
+        f"{ACCESS_COOKIE_NAME}=",
+        f"{REFRESH_COOKIE_NAME}=",
+        f"{CSRF_COOKIE_NAME}=",
+    )
+
+    for header in cookie_headers:
+        if header.startswith(prefixes) and "partitioned" not in header.lower():
+            header = f"{header}; Partitioned"
+
+        response.headers.append("set-cookie", header)
+
+
 def _set_auth_cookies(
     response: Response,
     user_obj: User,
-) -> None:
+    request: Request | None = None,
+) -> str:
     """
     Membuat access, refresh, dan signed CSRF cookie.
+
+    Mengembalikan nilai CSRF token agar bisa diteruskan ke frontend
+    (dibutuhkan pada deployment frontend/backend beda origin).
+
     Access dan refresh token tidak dapat dibaca JavaScript.
     """
+
+    policy = resolve_cookie_policy(request)
 
     payload = _token_payload(user_obj)
 
@@ -144,42 +195,61 @@ def _set_auth_cookies(
     refresh_token = create_refresh_token(payload)
     csrf_token = create_csrf_token()
 
+    access_max_age = access_cookie_max_age()
+    refresh_max_age = refresh_cookie_max_age()
+
     response.set_cookie(
         key=ACCESS_COOKIE_NAME,
         value=access_token,
-        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        max_age=access_max_age,
+        expires=cookie_expiry(access_max_age),
         httponly=True,
-        secure=COOKIE_SECURE,
-        samesite=COOKIE_SAMESITE,
+        secure=policy.secure,
+        samesite=policy.samesite,
         path="/",
-        domain=COOKIE_DOMAIN,
+        domain=policy.domain,
+        partitioned=False,
     )
 
     response.set_cookie(
         key=REFRESH_COOKIE_NAME,
         value=refresh_token,
-        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400,
+        max_age=refresh_max_age,
+        expires=cookie_expiry(refresh_max_age),
         httponly=True,
-        secure=COOKIE_SECURE,
-        samesite=COOKIE_SAMESITE,
+        secure=policy.secure,
+        samesite=policy.samesite,
         path="/",
-        domain=COOKIE_DOMAIN,
+        domain=policy.domain,
+        partitioned=False,
     )
 
     response.set_cookie(
         key=CSRF_COOKIE_NAME,
         value=csrf_token,
-        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400,
+        max_age=refresh_max_age,
+        expires=cookie_expiry(refresh_max_age),
         httponly=False,
-        secure=COOKIE_SECURE,
-        samesite=COOKIE_SAMESITE,
+        secure=policy.secure,
+        samesite=policy.samesite,
         path="/",
-        domain=COOKIE_DOMAIN,
+        domain=policy.domain,
+        partitioned=False,
     )
 
+    if policy.partitioned:
+        _mark_partitioned(response)
 
-def _clear_auth_cookies(response: Response) -> None:
+    return csrf_token
+
+
+def _clear_auth_cookies(
+    response: Response,
+    request: Request | None = None,
+) -> None:
     """Menghapus seluruh cookie autentikasi."""
+
+    policy = resolve_cookie_policy(request)
 
     for cookie_name in (
         ACCESS_COOKIE_NAME,
@@ -189,11 +259,15 @@ def _clear_auth_cookies(response: Response) -> None:
         response.delete_cookie(
             key=cookie_name,
             path="/",
-            domain=COOKIE_DOMAIN,
-            secure=COOKIE_SECURE,
+            domain=policy.domain,
+            secure=policy.secure,
             httponly=cookie_name != CSRF_COOKIE_NAME,
-            samesite=COOKIE_SAMESITE,
+            samesite=policy.samesite,
+            partitioned=False,
         )
+
+    if policy.partitioned:
+        _mark_partitioned(response)
 
 
 # ---------------------------------------------------------
@@ -448,12 +522,135 @@ def verify_registration(
         user_obj,
     )
 
-    _set_auth_cookies(
+    csrf_token = _set_auth_cookies(
         response,
         user_obj,
+        request,
     )
 
-    return _auth_response(user_obj)
+    return _auth_response(user_obj, csrf_token)
+
+
+# ---------------------------------------------------------
+# Token -> user helpers
+# ---------------------------------------------------------
+
+def _user_from_token_payload(
+    db: Session,
+    token_data: dict | None,
+) -> User | None:
+    """Validasi payload JWT dan kembalikan user yang masih cocok.
+
+    Password fingerprint ikut diperiksa supaya token lama otomatis
+    tidak berlaku setelah pengguna mengganti kata sandi.
+    """
+
+    if not token_data or not token_data.get("sub"):
+        return None
+
+    try:
+        user_id = int(token_data["sub"])
+    except (ValueError, TypeError):
+        return None
+
+    user_obj = crud_user.get_by_id(db, user_id)
+
+    if not user_obj:
+        return None
+
+    token_fingerprint = str(token_data.get("pwd", ""))
+    current_fingerprint = password_fingerprint(
+        user_obj.password_hash
+    )
+
+    if not secrets.compare_digest(
+        token_fingerprint,
+        current_fingerprint,
+    ):
+        return None
+
+    return user_obj
+
+
+def _user_from_access_token(
+    db: Session,
+    token: str | None,
+) -> User | None:
+    if not token:
+        return None
+
+    return _user_from_token_payload(
+        db,
+        decode_access_token(token),
+    )
+
+
+def _user_from_refresh_token(
+    db: Session,
+    token: str | None,
+) -> User | None:
+    if not token:
+        return None
+
+    return _user_from_token_payload(
+        db,
+        decode_refresh_token(token),
+    )
+
+
+# ---------------------------------------------------------
+# Session restore
+# ---------------------------------------------------------
+
+@router.get("/session")
+def restore_session(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    """Pulihkan sesi saat halaman dibuka/di-refresh.
+
+    Access token dipakai lebih dulu. Bila access token sudah
+    kedaluwarsa tetapi refresh token masih berlaku, cookie
+    diterbitkan ulang secara transparan sehingga pengguna tidak
+    perlu login lagi.
+    """
+
+    user_obj = _user_from_access_token(
+        db,
+        request.cookies.get(ACCESS_COOKIE_NAME),
+    )
+
+    if user_obj:
+        csrf_token = request.cookies.get(CSRF_COOKIE_NAME)
+
+        if not csrf_token:
+            csrf_token = _set_auth_cookies(
+                response,
+                user_obj,
+                request,
+            )
+
+        return _auth_response(user_obj, csrf_token)
+
+    user_obj = _user_from_refresh_token(
+        db,
+        request.cookies.get(REFRESH_COOKIE_NAME),
+    )
+
+    if user_obj:
+        csrf_token = _set_auth_cookies(
+            response,
+            user_obj,
+            request,
+        )
+
+        return _auth_response(user_obj, csrf_token)
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail=INVALID_REFRESH_DETAIL,
+    )
 
 
 # ---------------------------------------------------------
@@ -476,37 +673,9 @@ def refresh_access_token(
 
     verify_csrf(request)
 
-    refresh_token = request.cookies.get(
-        REFRESH_COOKIE_NAME
-    )
-
-    if not refresh_token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=INVALID_REFRESH_DETAIL,
-        )
-
-    token_data = decode_refresh_token(
-        refresh_token
-    )
-
-    if not token_data or not token_data.get("sub"):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=INVALID_REFRESH_DETAIL,
-        )
-
-    try:
-        user_id = int(token_data["sub"])
-    except (ValueError, TypeError):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=INVALID_REFRESH_DETAIL,
-        )
-
-    user_obj = crud_user.get_by_id(
+    user_obj = _user_from_refresh_token(
         db,
-        user_id,
+        request.cookies.get(REFRESH_COOKIE_NAME),
     )
 
     if not user_obj:
@@ -515,32 +684,18 @@ def refresh_access_token(
             detail=INVALID_REFRESH_DETAIL,
         )
 
-    token_fingerprint = str(
-        token_data.get("pwd", "")
-    )
-
-    current_fingerprint = password_fingerprint(
-        user_obj.password_hash
-    )
-
-    if not secrets.compare_digest(
-        token_fingerprint,
-        current_fingerprint,
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=INVALID_REFRESH_DETAIL,
-        )
-
-    _set_auth_cookies(
+    csrf_token = _set_auth_cookies(
         response,
         user_obj,
+        request,
     )
 
     return {
         "success": True,
         "message": "Sesi berhasil diperbarui.",
         "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        "csrf_token": csrf_token,
+        "user": _serialize_user(user_obj),
     }
 
 
@@ -553,11 +708,14 @@ def logout(
     request: Request,
     response: Response,
 ):
-    """Logout dengan menghapus cookie autentikasi."""
+    """Logout dengan menghapus cookie autentikasi.
 
-    verify_csrf(request)
+    CSRF tidak diwajibkan di sini agar cookie tetap bisa dibersihkan
+    meskipun token CSRF sudah hilang/kedaluwarsa. Risiko CSRF logout
+    hanya berupa gangguan, bukan kebocoran data.
+    """
 
-    _clear_auth_cookies(response)
+    _clear_auth_cookies(response, request)
 
     return {
         "success": True,
@@ -674,12 +832,13 @@ def login(
             ),
         )
 
-    _set_auth_cookies(
+    csrf_token = _set_auth_cookies(
         response,
         user_obj,
+        request,
     )
 
-    return _auth_response(user_obj)
+    return _auth_response(user_obj, csrf_token)
 
 
 # ---------------------------------------------------------
@@ -796,7 +955,7 @@ def reset_password(
         user_obj.id,
     )
 
-    _clear_auth_cookies(response)
+    _clear_auth_cookies(response, request)
 
     return {
         "success": True,

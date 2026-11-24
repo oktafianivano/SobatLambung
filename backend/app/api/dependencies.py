@@ -1,22 +1,17 @@
 
-import secrets
-
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import User
-from app.crud import user as crud_user
-from app.auth import (
-    decode_access_token,
-    password_fingerprint,
-    verify_csrf_token,
-)
+from app.auth import verify_csrf_token
 from app.config import settings
+from app.cookies import (
+    ACCESS_COOKIE_NAME,
+    REFRESH_COOKIE_NAME,
+)
 
 
-ACCESS_COOKIE_NAME = "access_token"
-CSRF_COOKIE_NAME = "csrf_token"
 CSRF_HEADER_NAME = "x-csrf-token"
 
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
@@ -53,32 +48,28 @@ def _validate_origin(request: Request) -> None:
 
 def verify_csrf(request: Request) -> None:
     """
-    Signed double-submit cookie CSRF protection.
-    Diterapkan pada request yang mengubah data.
+    Proteksi CSRF berbasis token bertanda tangan (HMAC).
+
+    Header ``X-CSRF-Token`` wajib berisi token yang diterbitkan server
+    pada response login/refresh/session. Token juga tersedia sebagai
+    cookie agar aplikasi same-origin dapat membacanya lewat JavaScript.
+
+    Pendekatan ini tetap bekerja saat frontend dan backend berada di
+    origin berbeda, karena JavaScript tidak perlu membaca cookie API.
     """
 
     if request.method.upper() in SAFE_METHODS:
         return
 
-    csrf_cookie = request.cookies.get(CSRF_COOKIE_NAME)
     csrf_header = request.headers.get(CSRF_HEADER_NAME)
 
-    if not csrf_cookie or not csrf_header:
+    if not csrf_header:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="CSRF token tidak ditemukan.",
         )
 
-    if not secrets.compare_digest(
-        csrf_cookie,
-        csrf_header,
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="CSRF token tidak cocok.",
-        )
-
-    if not verify_csrf_token(csrf_cookie):
+    if not verify_csrf_token(csrf_header):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="CSRF token tidak valid.",
@@ -87,61 +78,86 @@ def verify_csrf(request: Request) -> None:
     _validate_origin(request)
 
 
+def _resolve_current_user(
+    request: Request,
+    response: Response,
+    db: Session,
+) -> User | None:
+    """Cari user dari access token, lalu fallback ke refresh token.
+
+    Fallback ini membuat halaman yang di-refresh tetap login meskipun
+    access token (30 menit) sudah kedaluwarsa: cookie baru langsung
+    diterbitkan pada response yang sama.
+    """
+
+    # Import lokal untuk menghindari circular import saat modul dimuat.
+    from app.api.endpoints.auth import (
+        _set_auth_cookies,
+        _user_from_access_token,
+        _user_from_refresh_token,
+    )
+
+    user = _user_from_access_token(
+        db,
+        request.cookies.get(ACCESS_COOKIE_NAME),
+    )
+
+    if user:
+        return user
+
+    refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
+
+    if not refresh_token:
+        return None
+
+    user = _user_from_refresh_token(db, refresh_token)
+
+    if not user:
+        return None
+
+    _set_auth_cookies(
+        response,
+        user,
+        request,
+    )
+
+    return user
+
+
 def get_current_user(
     request: Request,
+    response: Response,
     db: Session = Depends(get_db),
 ) -> User:
     """
-    Autentikasi menggunakan access_token dari HttpOnly cookie.
-    Tidak membaca Authorization: Bearer.
+    Autentikasi menggunakan HttpOnly cookie.
+
+    Access token diprioritaskan. Bila sudah kedaluwarsa tetapi refresh
+    token masih valid, sesi diperpanjang otomatis tanpa memaksa user
+    login ulang. Tidak membaca Authorization: Bearer.
     """
 
     verify_csrf(request)
 
-    access_token = request.cookies.get(ACCESS_COOKIE_NAME)
+    user = _resolve_current_user(request, response, db)
 
-    if not access_token:
+    if user:
+        return user
+
+    has_access_cookie = bool(
+        request.cookies.get(ACCESS_COOKIE_NAME)
+    )
+    has_refresh_cookie = bool(
+        request.cookies.get(REFRESH_COOKIE_NAME)
+    )
+
+    if not has_access_cookie and not has_refresh_cookie:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Sesi tidak ditemukan. Silakan login kembali.",
         )
 
-    payload = decode_access_token(access_token)
-
-    if not payload or not payload.get("sub"):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Sesi tidak valid atau telah kedaluwarsa.",
-        )
-
-    try:
-        user_id = int(payload["sub"])
-    except (ValueError, TypeError):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token tidak valid.",
-        )
-
-    user = crud_user.get_by_id(db, user_id)
-
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Sesi tidak valid.",
-        )
-
-    token_fingerprint = str(payload.get("pwd", ""))
-    current_fingerprint = password_fingerprint(
-        user.password_hash
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Sesi tidak valid atau telah kedaluwarsa.",
     )
-
-    if not secrets.compare_digest(
-        token_fingerprint,
-        current_fingerprint,
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Sesi telah kedaluwarsa. Silakan login kembali.",
-        )
-
-    return user
