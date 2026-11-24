@@ -52,13 +52,25 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 # Fixtures
 # --------------------------------------------------------------------------- #
 @pytest.fixture()
-def client():
+def client(monkeypatch):
+    monkeypatch.setattr(
+        settings,
+        "ADMIN_API_KEY",
+        "test-admin-key",
+    )
+
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+    TestingSessionLocal = sessionmaker(
+        autocommit=False,
+        autoflush=False,
+        bind=engine,
+    )
+
     Base.metadata.create_all(bind=engine)
 
     def override_get_db():
@@ -70,15 +82,17 @@ def client():
 
     test_app = FastAPI()
     test_app.state.limiter = limiter
-    test_app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
+    test_app.add_exception_handler(
+        RateLimitExceeded,
+        rate_limit_handler,
+    )
     test_app.add_middleware(SecurityHeadersMiddleware)
     test_app.include_router(api_v1_router)
     test_app.dependency_overrides[get_db] = override_get_db
 
-    # Rate limit global dimatikan selama test fungsional supaya tidak saling
-    # memblokir. Test rate limit memakai app+limiter sendiri di bawah.
     previous = limiter.enabled
     limiter.enabled = False
+
     try:
         with TestClient(test_app) as c:
             yield c
@@ -324,8 +338,9 @@ def test_security_headers_on_api_response():
 
 
 def test_hsts_only_when_request_is_https():
-    client = TestClient(_header_app())
-    response = client.get("/health", headers={"x-forwarded-proto": "https"})
+    client = TestClient(_header_app(), base_url="https://testserver")
+    response = client.get("/health")
+
     assert "max-age=31536000" in response.headers["strict-transport-security"]
 
 
@@ -398,23 +413,39 @@ def test_rate_limit_returns_429_with_detail_field():
 # --------------------------------------------------------------------------- #
 # 6. Alur auth via API (registrasi + verifikasi OTP)
 # --------------------------------------------------------------------------- #
+
 def test_register_requires_otp_before_issuing_token(client, outbox):
     response = _register(client)
+
     assert response.status_code == 201, response.text
+
     body = response.json()
     assert body["requires_verification"] is True
     assert body["no_wa_masked"] == "6281*****7890"
     assert "access_token" not in body
+
     assert len(outbox) == 1
     assert re.search(r"\b\d{6}\b", outbox[0]["message"])
 
-    verified = _verify(client, "081234567890", _last_otp(outbox))
+    verified = _verify(
+        client,
+        "081234567890",
+        _last_otp(outbox),
+    )
+
     assert verified.status_code == 200, verified.text
+
     token_body = verified.json()
-    assert token_body["token_type"] == "bearer"
+
+    assert "access_token" not in token_body
+    assert "token_type" not in token_body
     assert token_body["user"]["no_wa_masked"] == "6281*****7890"
     assert token_body["user"]["is_verified"] is True
     assert "password_hash" not in token_body["user"]
+
+    set_cookie = verified.headers.get("set-cookie", "").lower()
+    assert "httponly" in set_cookie
+
 
 
 def test_register_rejects_xss_name(client):
@@ -498,11 +529,13 @@ def test_login_profile_and_short_password(client, outbox):
         json={"no_wa": "081234567890", "password": "rahasia123"},
     )
     assert login.status_code == 200, login.text
-    token = login.json()["access_token"]
 
-    profile = client.get(
-        "/api/v1/user/profile", headers={"Authorization": f"Bearer {token}"}
-    )
+    # Token harus diberikan melalui HttpOnly cookie, bukan JSON.
+    assert "access_token" not in login.json()
+    assert "httponly" in login.headers.get("set-cookie", "").lower()
+
+    # TestClient otomatis menyimpan dan mengirim cookie.
+    profile = client.get("/api/v1/user/profile")
     assert profile.status_code == 200
     assert profile.json()["no_wa_masked"] == "6281*****7890"
 
@@ -514,7 +547,11 @@ def test_login_profile_and_short_password(client, outbox):
 
     too_long = client.post(
         "/api/v1/auth/register",
-        json={"nama": "Budi", "no_wa": "081234567891", "password": "a" * 73},
+        json={
+            "nama": "Budi",
+            "no_wa": "081234567891",
+            "password": "a" * 73,
+        },
     )
     assert too_long.status_code == 400
     assert "72 byte" in too_long.json()["detail"]

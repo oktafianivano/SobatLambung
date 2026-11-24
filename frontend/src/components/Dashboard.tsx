@@ -1,19 +1,15 @@
-import { apiFetch, getSession } from '../lib/api';
+
 import React, { useState } from 'react';
+import { apiFetch } from '../lib/api';
 import { UserProfile } from '../types';
 import { useSchedules } from '../hooks/useSchedules';
 import { WhatsAppPhoneMockup } from './WhatsAppPhoneMockup';
 import {
-  Bell,
-  BellOff,
   Clock,
   ShieldCheck,
-  CheckCircle2,
   Lock,
   Utensils,
-  Smartphone,
   Info,
-  CalendarCheck
 } from 'lucide-react';
 
 interface DashboardProps {
@@ -35,16 +31,24 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const handleSendTestNotification = async () => {
     setIsSendingTest(true);
     setToggleFeedback(null);
+
     try {
-      const response = await apiFetch('/user/test-notification?meal_key=breakfast', {
-        method: 'POST',
-      });
+      const response = await apiFetch(
+        '/user/test-notification?meal_key=breakfast',
+        { method: 'POST' },
+      );
+
       const data = await response.json();
-      if (!response.ok) throw new Error(data.detail || 'Gagal mengirim test');
-      
+
+      if (!response.ok) {
+        throw new Error(data.detail || 'Gagal mengirim test');
+      }
+
       setToggleFeedback('✅ Pesan tes berhasil dikirim ke WhatsApp Anda!');
-    } catch (err: any) {
-      setToggleFeedback(`❌ Error: ${err.message}`);
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : 'Terjadi kesalahan';
+      setToggleFeedback(`❌ Error: ${message}`);
     } finally {
       setIsSendingTest(false);
       setTimeout(() => setToggleFeedback(null), 5000);
@@ -54,19 +58,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const handleToggleAlarm = async () => {
     const newStatus = !currentUser.is_alarm_active;
 
-    // Akun demo (tanpa JWT asli) tidak punya baris di database,
-    // jadi perubahan hanya berlaku di tampilan.
-    if (!currentUser.token || currentUser.token.startsWith('jwt_demo_token_')) {
-      onUpdateUser({ ...currentUser, is_alarm_active: newStatus });
-      setToggleFeedback(
-        newStatus
-          ? 'Mode demo: pengingat ditandai aktif (tidak tersimpan ke server).'
-          : 'Mode demo: pengingat ditandai nonaktif (tidak tersimpan ke server).'
-      );
-      setTimeout(() => setToggleFeedback(null), 4000);
-      return;
-    }
-
     setIsUpdating(true);
     setToggleFeedback(null);
 
@@ -75,29 +66,29 @@ export const Dashboard: React.FC<DashboardProps> = ({
         method: 'PUT',
         body: JSON.stringify({ is_alarm_active: newStatus }),
       });
+
       const data = await response.json();
+
       if (!response.ok) {
-        throw new Error(data.detail || 'Gagal memperbarui status pengingat.');
+        throw new Error(
+          data.detail || 'Gagal memperbarui status pengingat.',
+        );
       }
 
-      // Server adalah sumber kebenaran: pakai nilai yang dikembalikan.
-      // Ambil token terbaru dari sesi, karena apiFetch bisa saja baru
-      // memperbarui access token lewat refresh token.
-      const latest = getSession();
       onUpdateUser({
         ...currentUser,
         ...data,
-        token: latest?.token ?? currentUser.token,
-        refresh_token: latest?.refresh_token ?? currentUser.refresh_token,
       });
 
       setToggleFeedback(
         data.is_alarm_active
           ? 'Layanan pengingat WhatsApp diaktifkan! Server akan mengirim pesan setiap jam makan.'
-          : 'Layanan pengingat dinonaktifkan. Anda tidak akan menerima pesan broadcast sampai diaktifkan kembali.'
+          : 'Layanan pengingat dinonaktifkan. Anda tidak akan menerima pesan broadcast sampai diaktifkan kembali.',
       );
-    } catch (err: any) {
-      setToggleFeedback(`❌ Gagal mengubah pengingat: ${err.message}`);
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : 'Terjadi kesalahan';
+      setToggleFeedback(`❌ Gagal mengubah pengingat: ${message}`);
     } finally {
       setIsUpdating(false);
       setTimeout(() => setToggleFeedback(null), 4000);
@@ -114,11 +105,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <ShieldCheck className="w-3.5 h-3.5" />
               <span>Dasbor Privat Mahasiswa Terverifikasi</span>
             </div>
+
             <h1 className="text-2xl sm:text-3xl font-extrabold text-white wrap-break-words">
               Halo, {currentUser.nama}! 👋
             </h1>
+
             <p className="text-emerald-100/80 text-xs sm:text-sm mt-1 break-all">
-              Nomor WhatsApp Terhubung: <span className="font-mono font-bold text-white">+{currentUser.no_wa}</span>
+              Nomor WhatsApp Terhubung:{' '}
+              <span className="font-mono font-bold text-white">
+                +{currentUser.no_wa}
+              </span>
             </p>
           </div>
 
@@ -130,7 +126,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   Status Alarm Pengingat
                 </p>
                 <p className="text-[11px] text-emerald-200 mt-0.5">
-                  {currentUser.is_alarm_active ? '● Mengirim Pesan WhatsApp' : '○ Dinonaktifkan'}
+                  {currentUser.is_alarm_active
+                    ? '● Mengirim Pesan WhatsApp'
+                    : '○ Dinonaktifkan'}
                 </p>
               </div>
 
@@ -138,18 +136,22 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 onClick={handleToggleAlarm}
                 disabled={isUpdating}
                 className={`relative inline-flex h-8 w-16 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
-                  currentUser.is_alarm_active ? 'bg-emerald-500' : 'bg-slate-600'
+                  currentUser.is_alarm_active
+                    ? 'bg-emerald-500'
+                    : 'bg-slate-600'
                 }`}
               >
                 <span className="sr-only">Toggle Alarm WhatsApp</span>
                 <span
                   className={`pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
-                    currentUser.is_alarm_active ? 'translate-x-8' : 'translate-x-0'
+                    currentUser.is_alarm_active
+                      ? 'translate-x-8'
+                      : 'translate-x-0'
                   }`}
                 />
               </button>
             </div>
-            
+
             <button
               onClick={handleSendTestNotification}
               disabled={isSendingTest || !currentUser.is_alarm_active}
@@ -176,11 +178,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <Clock className="w-3.5 h-3.5" />
               Sesuai Standar Medis Gastroentero-Hepatologi
             </div>
+
             <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
               Jadwal Alarm Makan Harian (Statis)
             </h2>
+
             <p className="text-xs sm:text-sm text-slate-500">
-              Jadwal ini dikontrol penuh oleh sistem secara otomatis dan tidak dapat diubah mahasiswa demi konsistensi ritme sirkadian lambung.
+              Jadwal ini dikontrol penuh oleh sistem secara otomatis dan
+              tidak dapat diubah mahasiswa demi konsistensi ritme sirkadian
+              lambung.
             </p>
           </div>
 
@@ -202,30 +208,41 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 font-mono">
                     {item.time}
                   </span>
+
                   <div className="flex items-center gap-1 text-[11px] text-slate-400 font-medium">
                     <Lock className="w-3 h-3 text-slate-400" />
                     <span>Statis</span>
                   </div>
                 </div>
 
-                <h3 className="font-bold text-base text-slate-900 mb-1">{item.label}</h3>
-                <p className="text-xs text-slate-600 mb-4">{item.shortDesc}</p>
+                <h3 className="font-bold text-base text-slate-900 mb-1">
+                  {item.label}
+                </h3>
+
+                <p className="text-xs text-slate-600 mb-4">
+                  {item.shortDesc}
+                </p>
 
                 <div className="p-3 rounded-xl bg-emerald-50/60 border border-emerald-100 mb-4">
                   <p className="text-[11px] font-bold text-emerald-900 mb-1 flex items-center gap-1">
                     <Utensils className="w-3 h-3 text-emerald-700" />
                     Rekomendasi Menu Mahasiswa:
                   </p>
+
                   <ul className="text-[11px] text-slate-700 space-y-1 list-disc list-inside">
                     {item.recommendedMenus.map((menu, mIdx) => (
-                      <li key={mIdx} className="leading-snug">{menu}</li>
+                      <li key={mIdx} className="leading-snug">
+                        {menu}
+                      </li>
                     ))}
                   </ul>
                 </div>
               </div>
 
               <div className="pt-3 border-t border-slate-100 text-[11px] text-slate-500">
-                <span className="font-semibold text-slate-700">Rasional Medis: </span>
+                <span className="font-semibold text-slate-700">
+                  Rasional Medis:{' '}
+                </span>
                 {item.medicalRationale}
               </div>
             </div>

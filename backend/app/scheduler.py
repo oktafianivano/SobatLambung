@@ -1,133 +1,25 @@
+
+import asyncio
 import logging
+import re
+
 import httpx
+
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy.orm import Session
+
 from app.database import SessionLocal
 from app.models import User
 from app.config import settings
-from datetime import datetime
-from zoneinfo import ZoneInfo
 from app.reminder_config import MEAL_ORDER, reminder_config
 
-logging.basicConfig(level=logging.INFO)
+
 logger = logging.getLogger("sobat_lambung_scheduler")
 
-WIB = ZoneInfo("Asia/Jakarta")
-
-MEAL_TEMPLATES = {
-    "breakfast": {
-        "title": f"🌅 Waktunya Sarapan Sehat ({datetime.now(WIB).strftime('%H:%M')} WIB)",
-        "menu": ["Bubur ayam tanpa sambal / kuah kuning ringan", "Oatmeal dengan pisang matang & madu", "Roti gandum panggang + telur rebus"],
-        "advice": "Jangan biarkan lambung kosong lebih dari 12 jam sejak malam. Asam lambung pagi hari dapat mengikis mukosa jika tidak dinetralisir sarapan rendah asam."
-    },
-    "lunch": {
-        "title": f"☀️ Waktunya Makan Siang ({datetime.now(WIB).strftime('%H:%M')} WIB)",
-        "menu": ["Nasi putih pulen hangat + sup wortel bayam + ayam suwir kukus", "Ikan nila/salmon kukus bumbu kunyit + tahu kukus", "Kentang tumbuk (mashed potato) + telur dadar minim minyak"],
-        "advice": "Kunyah makanan perlahan (minimal 20-30 kali). Hindari kopi dingin, minuman bersoda, dan gorengan pedas di kantin kampus saat istirahat kuliah."
-    },
-    "dinner": {
-        "title": f"🌙 Waktunya Makan Malam ({datetime.now(WIB).strftime('%H:%M')} WIB)",
-        "menu": ["Sup labu siam / wortel hangat + tempe bacem panggang", "Nasi tim ayam jamur rendah lemak", "Bubur kacang hijau kuah santan sangat encer/tanpa santan"],
-        "advice": "Beri jeda minimal 2-3 jam antara makan malam dan waktu tidur agar asam lambung tidak naik kembali ke esofagus (mencegah reflux/GERD)."
-    }
-}
-# Dibangun sekali saat import. Environment sudah final di titik ini, jadi judul
-# pesan selalu mengikuti MEAL_*_TIME dari .env / Railway Variables dan tidak
-# bisa lagi tertinggal dari jam yang benar-benar dipakai CronTrigger.
 MEAL_TEMPLATES = reminder_config.build_templates()
 
 
-def build_reset_otp_message(user_name: str, otp_code: str, expire_minutes: int) -> str:
-    return (
-        f"Halo *{user_name}*! 👋\n"
-        f"Permintaan reset kata sandi akun *Sobat Lambung* 🥣\n\n"
-        f"Kode OTP Anda:\n"
-        f"*{otp_code}*\n\n"
-        f"Kode ini berlaku selama *{expire_minutes} menit* dan hanya dapat digunakan satu kali.\n"
-        f"Jangan bagikan kode ini kepada siapa pun, termasuk pihak yang mengaku sebagai admin Sobat Lambung.\n\n"
-        f"_Jika Anda tidak merasa meminta reset kata sandi, abaikan pesan ini. Kata sandi Anda tidak akan berubah._"
-    )
-
-
-def build_verification_otp_message(user_name: str, otp_code: str, expire_minutes: int) -> str:
-    return (
-        f"Halo *{user_name}*! 👋\n"
-        f"Verifikasi nomor WhatsApp akun *Sobat Lambung* 🥣\n\n"
-        f"Kode OTP Anda:\n"
-        f"*{otp_code}*\n\n"
-        f"Kode ini berlaku selama *{expire_minutes} menit* dan hanya dapat digunakan satu kali.\n"
-        f"Jangan bagikan kode ini kepada siapa pun, termasuk pihak yang mengaku sebagai admin Sobat Lambung.\n\n"
-        f"_Jika Anda tidak merasa mendaftar di Sobat Lambung, abaikan pesan ini._"
-    )
-
-
-def build_whatsapp_message(user_name: str, meal_key: str) -> str:
-    tpl = MEAL_TEMPLATES.get(meal_key, MEAL_TEMPLATES["lunch"])
-    menus = "\n".join([f"  • {m}" for m in tpl["menu"]])
-    
-    return (
-        f"Halo *{user_name}*! 👋\n"
-        f"Pengingat dari *Sobat Lambung* 🥣\n\n"
-        f"*{tpl['title']}*\n\n"
-        f"🍽️ *Rekomendasi Menu Mahasiswa Aman Lambung:*\n"
-        f"{menus}\n\n"
-        f"💡 *Catatan Medis Sobat Lambung:*\n"
-        f"{tpl['advice']}\n\n"
-        f"_Tetap teratur makan di tengah padatnya tugas & kuliah ya!_ 😊"
-    )
-
-
-async def send_fonnte_message(target_wa: str, message: str) -> dict:
-    if not settings.FONNTE_TOKEN or settings.FONNTE_TOKEN == "YOUR_FONNTE_TOKEN_HERE":
-        logger.warning(f"[SIMULASI FONNTE] Token belum diisi. Pesan ke {target_wa}:\n{message}")
-        return {"status": False, "reason": "TOKEN_PLACEHOLDER", "simulated": True}
-
-    clean_target = target_wa.strip()
-    if clean_target.startswith("0"):
-        clean_target = "62" + clean_target[1:]
-    elif not clean_target.startswith("62"):
-        clean_target = "62" + clean_target
-
-    headers = {"Authorization": settings.FONNTE_TOKEN}
-    payload = {
-        "target": clean_target,
-        "message": message
-    }
-
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.post(settings.FONNTE_API_URL, headers=headers, data=payload)
-            data = response.json()
-            logger.info(f"Fonnte Response untuk {clean_target}: {data}")
-            return data
-    except Exception as exc:
-        logger.error(f"Gagal kirim pesan WhatsApp ke {clean_target}: {exc}")
-        return {"status": False, "error": str(exc)}
-
-
-def trigger_scheduled_broadcast(meal_key: str):
-    db: Session = SessionLocal()
-    try:
-        active_users = db.query(User).filter(User.is_alarm_active == True).all()
-        logger.info(f"Memulai broadcast pengingat {meal_key} ke {len(active_users)} pengguna aktif.")
-        
-        import asyncio
-        for user in active_users:
-            msg = build_whatsapp_message(user.nama, meal_key)
-            try:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                loop.run_until_complete(send_fonnte_message(user.no_wa, msg))
-                loop.close()
-            except Exception as e:
-                logger.error(f"Error mengirim ke user {user.id}: {e}")
-    finally:
-        db.close()
-
-# Zona waktu acuan pengingat. Wajib dipakai eksplisit di setiap CronTrigger:
-# CronTrigger tanpa `timezone` memakai zona waktu lokal server (Railway = UTC),
-# sehingga jadwal 07:30 akan terkirim 14:30 WIB.
 JOB_NAMES = {
     "breakfast": "Pengingat Sarapan Sobat Lambung",
     "lunch": "Pengingat Makan Siang Sobat Lambung",
@@ -135,14 +27,337 @@ JOB_NAMES = {
 }
 
 
-def init_scheduler():
-    scheduler = BackgroundScheduler(timezone=reminder_config.MEAL_TIMEZONE)
+HTTP_TIMEOUT = httpx.Timeout(15.0, connect=5.0)
+
+
+# OTP message builders
+def build_reset_otp_message(
+    user_name: str,
+    otp_code: str,
+    expire_minutes: int,
+) -> str:
+    return (
+        f"Halo *{user_name}*! 👋\n"
+        f"Permintaan reset kata sandi akun *Sobat Lambung* 🥣\n\n"
+        f"Kode OTP Anda:\n"
+        f"*{otp_code}*\n\n"
+        f"Kode ini berlaku selama *{expire_minutes} menit* "
+        f"dan hanya dapat digunakan satu kali.\n"
+        f"Jangan bagikan kode ini kepada siapa pun, "
+        f"termasuk pihak yang mengaku sebagai admin Sobat Lambung.\n\n"
+        f"_Jika Anda tidak merasa meminta reset kata sandi, "
+        f"abaikan pesan ini. Kata sandi Anda tidak akan berubah._"
+    )
+
+
+def build_verification_otp_message(
+    user_name: str,
+    otp_code: str,
+    expire_minutes: int,
+) -> str:
+    return (
+        f"Halo *{user_name}*! 👋\n"
+        f"Verifikasi nomor WhatsApp akun *Sobat Lambung* 🥣\n\n"
+        f"Kode OTP Anda:\n"
+        f"*{otp_code}*\n\n"
+        f"Kode ini berlaku selama *{expire_minutes} menit* "
+        f"dan hanya dapat digunakan satu kali.\n"
+        f"Jangan bagikan kode ini kepada siapa pun, "
+        f"termasuk pihak yang mengaku sebagai admin Sobat Lambung.\n\n"
+        f"_Jika Anda tidak merasa mendaftar di Sobat Lambung, "
+        f"abaikan pesan ini._"
+    )
+
+
+# WhatsApp message builder
+def build_whatsapp_message(
+    user_name: str,
+    meal_key: str,
+) -> str:
+    template = MEAL_TEMPLATES.get(
+        meal_key,
+        MEAL_TEMPLATES["lunch"],
+    )
+
+    menus = "\n".join(
+        f"  • {menu}"
+        for menu in template["menu"]
+    )
+
+    return (
+        f"Halo *{user_name}*! 👋\n"
+        f"Pengingat dari *Sobat Lambung* 🥣\n\n"
+        f"*{template['title']}*\n\n"
+        f"🍽️ *Rekomendasi Menu Mahasiswa Aman Lambung:*\n"
+        f"{menus}\n\n"
+        f"💡 *Catatan Medis Sobat Lambung:*\n"
+        f"{template['advice']}\n\n"
+        f"_Tetap teratur makan di tengah padatnya tugas "
+        f"& kuliah ya!_ 😊"
+    )
+
+
+# WhatsApp number normalization
+def normalize_whatsapp_number(target_wa: str) -> str:
+    if not target_wa:
+        raise ValueError("WhatsApp number is empty")
+
+    clean_target = re.sub(
+        r"[\s\-()+]",
+        "",
+        target_wa.strip(),
+    )
+
+    if not clean_target.isdigit():
+        raise ValueError("Invalid WhatsApp number")
+
+    if clean_target.startswith("0"):
+        clean_target = "62" + clean_target[1:]
+    elif clean_target.startswith("8"):
+        clean_target = "62" + clean_target
+    elif not clean_target.startswith("62"):
+        raise ValueError("Unsupported WhatsApp country code")
+
+    if not 8 <= len(clean_target) <= 15:
+        raise ValueError("Invalid WhatsApp number length")
+
+    return clean_target
+
+
+# Internal Fonnte request
+async def _send_fonnte_request(
+    client: httpx.AsyncClient,
+    target_wa: str,
+    message: str,
+) -> dict:
+
+    if not settings.FONNTE_TOKEN:
+        return {
+            "status": False,
+            "reason": "TOKEN_NOT_CONFIGURED",
+        }
+
+    try:
+        clean_target = normalize_whatsapp_number(target_wa)
+
+        response = await client.post(
+            settings.FONNTE_API_URL,
+            headers={
+                "Authorization": settings.FONNTE_TOKEN,
+            },
+            data={
+                "target": clean_target,
+                "message": message,
+            },
+        )
+
+        response.raise_for_status()
+
+        try:
+            data = response.json()
+        except ValueError:
+            logger.error("Fonnte returned an invalid JSON response")
+
+            return {
+                "status": False,
+                "reason": "INVALID_RESPONSE",
+            }
+
+        if not isinstance(data, dict):
+            return {
+                "status": False,
+                "reason": "INVALID_RESPONSE",
+            }
+
+        return data
+
+    except ValueError as exc:
+        logger.warning("Invalid WhatsApp target: %s", exc)
+
+        return {
+            "status": False,
+            "reason": "INVALID_TARGET",
+        }
+
+    except httpx.HTTPStatusError as exc:
+        logger.error(
+            "Fonnte HTTP error. Status: %s",
+            exc.response.status_code,
+        )
+
+        return {
+            "status": False,
+            "reason": "HTTP_ERROR",
+            "status_code": exc.response.status_code,
+        }
+
+    except httpx.RequestError:
+        logger.exception("Fonnte connection failed")
+
+        return {
+            "status": False,
+            "reason": "CONNECTION_ERROR",
+        }
+
+
+# Public Fonnte sender
+async def send_fonnte_message(
+    target_wa: str,
+    message: str,
+) -> dict:
+
+    if not settings.FONNTE_TOKEN:
+        logger.warning(
+            "Fonnte token is not configured. Message was not sent."
+        )
+
+        return {
+            "status": False,
+            "reason": "TOKEN_NOT_CONFIGURED",
+        }
+
+    async with httpx.AsyncClient(
+        timeout=HTTP_TIMEOUT,
+    ) as client:
+        return await _send_fonnte_request(
+            client,
+            target_wa,
+            message,
+        )
+
+
+# Broadcast worker
+async def _broadcast_async(
+    users: list,
+    meal_key: str,
+) -> None:
+
+    success_count = 0
+    failed_count = 0
+
+    for user_id, user_name, phone_number in users:
+        try:
+            message = build_whatsapp_message(
+                user_name,
+                meal_key,
+            )
+
+            # Gunakan public sender agar bisa di-mock saat testing.
+            # Pemeriksaan FONNTE_TOKEN tetap dilakukan di sender ini.
+            result = await send_fonnte_message(
+                phone_number,
+                message,
+            )
+
+            if (
+                isinstance(result, dict)
+                and result.get("status") is True
+            ):
+                success_count += 1
+            else:
+                failed_count += 1
+
+                reason = (
+                    result.get("reason", "PROVIDER_REJECTED")
+                    if isinstance(result, dict)
+                    else "INVALID_RESPONSE"
+                )
+
+                logger.warning(
+                    "Reminder delivery failed for user ID %s. Reason: %s",
+                    user_id,
+                    reason,
+                )
+
+        except Exception:
+            failed_count += 1
+
+            logger.exception(
+                "Unexpected broadcast error for user ID %s",
+                user_id,
+            )
+
+    logger.info(
+        "Broadcast completed. Meal: %s | Success: %s | Failed: %s",
+        meal_key,
+        success_count,
+        failed_count,
+    )
+
+
+def trigger_scheduled_broadcast(meal_key: str) -> None:
+    """
+    Synchronous APScheduler entry point.
+    Creates one event loop for the entire broadcast.
+    """
+
+    if meal_key not in MEAL_TEMPLATES:
+        logger.error("Unknown meal key: %s", meal_key)
+        return
+
+    db: Session = SessionLocal()
+
+    try:
+        active_users = (
+            db.query(User.id, User.nama, User.no_wa)
+            .filter(User.is_alarm_active.is_(True))
+            .all()
+        )
+
+        users = [
+            (user.id, user.nama, user.no_wa)
+            for user in active_users
+            if user.no_wa
+        ]
+
+    except Exception:
+        logger.exception(
+            "Failed to retrieve active users for %s",
+            meal_key,
+        )
+        return
+
+    finally:
+        db.close()
+
+    logger.info(
+        "Starting %s broadcast for %s active users",
+        meal_key,
+        len(users),
+    )
+
+    if not users:
+        logger.info("No active users found. Broadcast skipped.")
+        return
+
+    try:
+        asyncio.run(
+            _broadcast_async(users, meal_key)
+        )
+
+    except Exception:
+        logger.exception(
+            "Broadcast execution failed for %s",
+            meal_key,
+        )
+
+
+# Scheduler initialization
+def init_scheduler() -> BackgroundScheduler:
+
+    scheduler = BackgroundScheduler(
+        timezone=reminder_config.MEAL_TIMEZONE,
+    )
 
     for meal_key in MEAL_ORDER:
-        hour, minute = reminder_config.hour_minute(meal_key)
+
+        hour, minute = reminder_config.hour_minute(
+            meal_key,
+        )
+
         scheduler.add_job(
             trigger_scheduled_broadcast,
-            CronTrigger(
+            trigger=CronTrigger(
                 hour=hour,
                 minute=minute,
                 timezone=reminder_config.MEAL_TIMEZONE,
@@ -151,6 +366,9 @@ def init_scheduler():
             id=f"alarm_{meal_key}",
             name=JOB_NAMES[meal_key],
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=300,
         )
 
     return scheduler

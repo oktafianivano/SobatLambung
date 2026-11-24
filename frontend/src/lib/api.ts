@@ -1,38 +1,14 @@
-import { apiUrl } from '../services/api';
-import { UserProfile } from '../types';
 
-const SESSION_KEY = 'sobat_lambung_session';
+import { apiUrl } from '../services/api';
+
 const TAB_KEY = 'sobat_lambung_active_tab';
 
 export const SESSION_UPDATED_EVENT = 'sobatlambung:session-updated';
 export const SESSION_EXPIRED_EVENT = 'sobatlambung:session-expired';
 
 const hasStorage = () =>
-  typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
-
-/** Simpan sesi login (access token + refresh token) agar tetap masuk setelah refresh halaman. */
-export function saveSession(user: UserProfile) {
-  if (!hasStorage() || !user.token) return;
-  localStorage.setItem(SESSION_KEY, JSON.stringify(user));
-}
-
-export function getSession(): UserProfile | null {
-  if (!hasStorage()) return null;
-  try {
-    const raw = localStorage.getItem(SESSION_KEY);
-    if (!raw) return null;
-    const user = JSON.parse(raw) as UserProfile;
-    return user && typeof user.id === 'number' && user.token ? user : null;
-  } catch {
-    return null;
-  }
-}
-
-export function clearSession() {
-  if (!hasStorage()) return;
-  localStorage.removeItem(SESSION_KEY);
-  localStorage.removeItem(TAB_KEY);
-}
+  typeof window !== 'undefined' &&
+  typeof window.localStorage !== 'undefined';
 
 export function saveActiveTab(tab: string) {
   if (!hasStorage()) return;
@@ -44,84 +20,115 @@ export function getSavedActiveTab(): string | null {
   return localStorage.getItem(TAB_KEY);
 }
 
-function emitSessionUpdated(user: UserProfile) {
-  window.dispatchEvent(new CustomEvent<UserProfile>(SESSION_UPDATED_EVENT, { detail: user }));
+export function clearSession() {
+  if (!hasStorage()) return;
+  localStorage.removeItem(TAB_KEY);
 }
 
-function emitSessionExpired() {
-  window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+function getCsrfToken(): string | null {
+  if (typeof document === 'undefined') return null;
+
+  const cookie = document.cookie
+    .split('; ')
+    .find((item) => item.startsWith('csrf_token='));
+
+  if (!cookie) return null;
+
+  return decodeURIComponent(
+    cookie.substring('csrf_token='.length),
+  );
 }
 
-type RefreshResult = { token: string | null; expired: boolean };
+function createHeaders(init: RequestInit = {}): Headers {
+  const headers = new Headers(init.headers);
+
+  const isFormData =
+    typeof FormData !== 'undefined' &&
+    init.body instanceof FormData;
+
+  if (
+    init.body &&
+    !headers.has('Content-Type') &&
+    !isFormData
+  ) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  const method = (init.method ?? 'GET').toUpperCase();
+  const unsafeMethod = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
+
+  if (unsafeMethod) {
+    const csrfToken = getCsrfToken();
+
+    if (csrfToken) {
+      headers.set('X-CSRF-Token', csrfToken);
+    }
+  }
+
+  return headers;
+}
+
+interface RefreshResult {
+  refreshed: boolean;
+  expired: boolean;
+}
 
 let refreshInFlight: Promise<RefreshResult> | null = null;
 
 async function requestNewAccessToken(): Promise<RefreshResult> {
-  const session = getSession();
-  if (!session?.refresh_token) {
-    // Tidak ada refresh token (mis. sesi demo) -> anggap sesi berakhir.
-    return { token: null, expired: true };
-  }
-
   try {
     const response = await fetch(apiUrl('/auth/refresh'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: session.refresh_token }),
+      credentials: 'include',
+      headers: createHeaders({ method: 'POST' }),
     });
 
     if (response.status === 401 || response.status === 403) {
-      return { token: null, expired: true };
+      return { refreshed: false, expired: true };
     }
+
     if (!response.ok) {
-      // Gangguan server/jaringan: jangan hapus sesi, biarkan dicoba lagi nanti.
-      return { token: null, expired: false };
+      return { refreshed: false, expired: false };
     }
 
-    const data = await response.json();
-    if (!data?.access_token) {
-      return { token: null, expired: true };
-    }
-
-    const current = getSession() ?? session;
-    const updated: UserProfile = {
-      ...current,
-      token: data.access_token as string,
-      refresh_token: current.refresh_token ?? session.refresh_token,
-    };
-    saveSession(updated);
-    emitSessionUpdated(updated);
-    return { token: updated.token as string, expired: false };
+    return { refreshed: true, expired: false };
   } catch {
-    return { token: null, expired: false };
+    return { refreshed: false, expired: false };
   }
 }
 
-/**
- * Tukar refresh token menjadi access token baru.
- * Pemanggilan bersamaan akan digabung menjadi satu request saja.
- */
 export function refreshAccessToken(): Promise<RefreshResult> {
   if (!refreshInFlight) {
     refreshInFlight = requestNewAccessToken().finally(() => {
       refreshInFlight = null;
     });
   }
+
   return refreshInFlight;
 }
 
 interface ApiFetchOptions {
-  /** Kirim header Authorization dari sesi tersimpan. Default: true. */
   auth?: boolean;
-  /** Coba refresh token otomatis saat menerima 401. Default: true. */
   retryOnUnauthorized?: boolean;
 }
 
-/**
- * fetch wrapper: otomatis menyisipkan access token, dan jika access token
- * kedaluwarsa (401) akan mencoba refresh token sekali lalu mengulang request.
- * Jika refresh token juga kedaluwarsa, sesi dihapus dan event logout dikirim.
- */
+function isAuthEndpoint(path: string): boolean {
+  const normalized = path.split('?')[0].replace(/\/+$/, '');
+
+  const authEndpoints = [
+    '/auth/login',
+    '/auth/register',
+    '/auth/register/verify',
+    '/auth/register/resend',
+    '/auth/refresh',
+    '/auth/logout',
+    '/auth/forgot-password',
+    '/auth/forgot-password/reset',
+  ];
+
+  return authEndpoints.some((endpoint) => normalized === endpoint);
+}
+
 export async function apiFetch(
   path: string,
   init: RequestInit = {},
@@ -129,31 +136,38 @@ export async function apiFetch(
 ): Promise<Response> {
   const useAuth = options.auth !== false;
   const retryOnUnauthorized = options.retryOnUnauthorized !== false;
-  const session = getSession();
 
-  const doFetch = (token?: string) => {
-    const headers: Record<string, string> = {};
-    if (init.body) headers['Content-Type'] = 'application/json';
-    if (init.headers) {
-      new Headers(init.headers).forEach((value, key) => {
-        headers[key] = value;
-      });
-    }
-    if (useAuth && token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-    return fetch(apiUrl(path), { ...init, headers });
-  };
+  const request = () =>
+    fetch(apiUrl(path), {
+      ...init,
+      credentials: 'include',
+      headers: createHeaders(init),
+    });
 
-  let response = await doFetch(session?.token);
+  let response = await request();
 
-  if (useAuth && retryOnUnauthorized && response.status === 401 && session) {
-    const result = await refreshAccessToken();
-    if (result.token) {
-      response = await doFetch(result.token);
-    } else if (result.expired) {
-      clearSession();
-      emitSessionExpired();
+  const shouldRefresh =
+    useAuth &&
+    retryOnUnauthorized &&
+    response.status === 401 &&
+    !isAuthEndpoint(path);
+
+  if (!shouldRefresh) {
+    return response;
+  }
+
+  const refreshResult = await refreshAccessToken();
+
+  if (refreshResult.refreshed) {
+    response = await request();
+    return response;
+  }
+
+  if (refreshResult.expired) {
+    clearSession();
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
     }
   }
 

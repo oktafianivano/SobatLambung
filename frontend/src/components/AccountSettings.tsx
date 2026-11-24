@@ -1,7 +1,11 @@
+
 import React, { useEffect, useState } from 'react';
-import { apiFetch, getSession } from '../lib/api';
+import { apiFetch } from '../lib/api';
 import { UserProfile } from '../types';
-import { normalizeWhatsAppNumber, validatePassword } from '../logic/sobatLambung';
+import {
+  normalizeWhatsAppNumber,
+  validatePassword,
+} from '../logic/sobatLambung';
 import { PasswordInput } from './PasswordInput';
 import {
   Phone,
@@ -23,7 +27,12 @@ interface AccountSettingsProps {
   onLogout: () => void;
 }
 
-type Feedback = { type: 'success' | 'error'; text: string } | null;
+type Feedback =
+  | {
+      type: 'success' | 'error';
+      text: string;
+    }
+  | null;
 
 export const AccountSettings: React.FC<AccountSettingsProps> = ({
   currentUser,
@@ -49,111 +58,164 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
     setNoWa(currentUser.no_wa);
   }, [currentUser.id, currentUser.nama, currentUser.no_wa]);
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  // Simpan perubahan profil menggunakan autentikasi cookie.
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setProfileFeedback(null);
 
-    if (!currentUser.token) {
-      setProfileFeedback({ type: 'error', text: 'Sesi login tidak ditemukan. Silakan login ulang.' });
-      return;
-    }
-
     if (!nama.trim() || nama.trim().length < 2) {
-      setProfileFeedback({ type: 'error', text: 'Nama lengkap minimal 2 karakter.' });
+      setProfileFeedback({
+        type: 'error',
+        text: 'Nama lengkap minimal 2 karakter.',
+      });
       return;
     }
 
     const phoneCheck = normalizeWhatsAppNumber(noWa);
+
     if (!phoneCheck.isValid) {
-      setProfileFeedback({ type: 'error', text: phoneCheck.error || 'Nomor WhatsApp tidak valid.' });
+      setProfileFeedback({
+        type: 'error',
+        text: phoneCheck.error || 'Nomor WhatsApp tidak valid.',
+      });
       return;
     }
 
     if (!profilePassword) {
-      setProfileFeedback({ type: 'error', text: 'Masukkan kata sandi saat ini untuk mengonfirmasi perubahan.' });
+      setProfileFeedback({
+        type: 'error',
+        text: 'Masukkan kata sandi saat ini untuk mengonfirmasi perubahan.',
+      });
       return;
     }
 
     setIsSavingProfile(true);
-    apiFetch('/user/profile/update', {
-      method: 'PUT',
-      body: JSON.stringify({
-        nama: nama.trim(),
-        no_wa: phoneCheck.formatted,
-        current_password: profilePassword,
-      }),
-    })
-      .then(async (res) => {
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Gagal menyimpan perubahan profil.');
 
-        const latest = getSession();
-        onUpdateUser({
-          ...data,
-          token: latest?.token ?? currentUser.token,
-          refresh_token: latest?.refresh_token ?? currentUser.refresh_token,
-        });
-        setProfilePassword('');
-        setProfileFeedback({ type: 'success', text: 'Profil berhasil diperbarui.' });
-      })
-      .catch((err) => setProfileFeedback({ type: 'error', text: err.message }))
-      .finally(() => setIsSavingProfile(false));
+    try {
+      const response = await apiFetch('/user/profile/update', {
+        method: 'PUT',
+        body: JSON.stringify({
+          nama: nama.trim(),
+          no_wa: phoneCheck.formatted,
+          current_password: profilePassword,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.detail || 'Gagal menyimpan perubahan profil.',
+        );
+      }
+
+      // Backend mengembalikan data profil, bukan token.
+      const updatedUser: UserProfile = {
+        ...currentUser,
+        ...data,
+      };
+
+      onUpdateUser(updatedUser);
+
+      setNama(updatedUser.nama);
+      setNoWa(updatedUser.no_wa);
+      setProfilePassword('');
+
+      setProfileFeedback({
+        type: 'success',
+        text: 'Profil berhasil diperbarui.',
+      });
+    } catch (error) {
+      setProfileFeedback({
+        type: 'error',
+        text:
+          error instanceof Error
+            ? error.message
+            : 'Terjadi kesalahan saat memperbarui profil.',
+      });
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
-  const handleChangePassword = (e: React.FormEvent) => {
+  // Ganti kata sandi menggunakan autentikasi cookie.
+  const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordFeedback(null);
 
-    if (!currentUser.token) {
-      setPasswordFeedback({ type: 'error', text: 'Sesi login tidak ditemukan. Silakan login ulang.' });
-      return;
-    }
-
     if (!currentPassword) {
-      setPasswordFeedback({ type: 'error', text: 'Masukkan kata sandi saat ini.' });
+      setPasswordFeedback({
+        type: 'error',
+        text: 'Masukkan kata sandi saat ini.',
+      });
       return;
     }
 
     const pwdCheck = validatePassword(newPassword);
+
     if (!pwdCheck.isValid) {
-      setPasswordFeedback({ type: 'error', text: pwdCheck.error || 'Kata sandi baru tidak valid.' });
+      setPasswordFeedback({
+        type: 'error',
+        text: pwdCheck.error || 'Kata sandi baru tidak valid.',
+      });
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setPasswordFeedback({ type: 'error', text: 'Konfirmasi kata sandi baru tidak cocok.' });
+      setPasswordFeedback({
+        type: 'error',
+        text: 'Konfirmasi kata sandi baru tidak cocok.',
+      });
       return;
     }
 
     setIsSavingPassword(true);
-    apiFetch('/user/change-password', {
-      method: 'POST',
-      body: JSON.stringify({
-        current_password: currentPassword,
-        new_password: newPassword,
-      }),
-    })
-      .then(async (res) => {
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Gagal memperbarui kata sandi.');
 
-        setCurrentPassword('');
-        setNewPassword('');
-        setConfirmPassword('');
-        onUpdateUser({
-          ...currentUser,
-          token: data.access_token ?? currentUser.token,
-          refresh_token: data.refresh_token ?? currentUser.refresh_token,
-        });
-        setPasswordFeedback({ type: 'success', text: data.message || 'Kata sandi berhasil diperbarui.' });
-      })
-      .catch((err) => setPasswordFeedback({ type: 'error', text: err.message }))
-      .finally(() => setIsSavingPassword(false));
+    try {
+      const response = await apiFetch('/user/change-password', {
+        method: 'POST',
+        body: JSON.stringify({
+          current_password: currentPassword,
+          new_password: newPassword,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.detail || 'Gagal memperbarui kata sandi.',
+        );
+      }
+
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+
+      // Tidak membaca atau menyimpan access_token / refresh_token.
+      // Cookie autentikasi diperbarui langsung oleh backend.
+      setPasswordFeedback({
+        type: 'success',
+        text: data.message || 'Kata sandi berhasil diperbarui.',
+      });
+    } catch (error) {
+      setPasswordFeedback({
+        type: 'error',
+        text:
+          error instanceof Error
+            ? error.message
+            : 'Terjadi kesalahan saat memperbarui kata sandi.',
+      });
+    } finally {
+      setIsSavingPassword(false);
+    }
   };
 
   const feedbackBox = (feedback: Feedback) => {
     if (!feedback) return null;
+
     const isSuccess = feedback.type === 'success';
+
     return (
       <div
         className={`p-3 rounded-xl border text-xs flex items-center gap-2 ${
@@ -167,6 +229,7 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
         ) : (
           <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
         )}
+
         <span>{feedback.text}</span>
       </div>
     );
@@ -180,14 +243,22 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
           <div className="w-16 h-16 rounded-2xl bg-white/15 border border-white/20 flex items-center justify-center text-2xl font-extrabold">
             {currentUser.nama.charAt(0).toUpperCase()}
           </div>
+
           <div>
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-semibold mb-2">
               <Settings2 className="w-3.5 h-3.5" />
               <span>Pengaturan Akun</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold wrap-break-words">{currentUser.nama}</h1>
+
+            <h1 className="text-2xl sm:text-3xl font-extrabold wrap-break-words">
+              {currentUser.nama}
+            </h1>
+
             <p className="text-emerald-100/80 text-xs sm:text-sm mt-1 break-all">
-              Nomor WhatsApp Terhubung: <span className="font-mono font-bold text-white">+{currentUser.no_wa}</span>
+              Nomor WhatsApp Terhubung:{' '}
+              <span className="font-mono font-bold text-white">
+                +{currentUser.no_wa}
+              </span>
             </p>
           </div>
         </div>
@@ -200,8 +271,11 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
             <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
               <UserIcon className="w-5 h-5" />
             </div>
+
             <div>
-              <h2 className="text-lg font-bold text-slate-900">Informasi Profil</h2>
+              <h2 className="text-lg font-bold text-slate-900">
+                Informasi Profil
+              </h2>
               <p className="text-xs text-slate-500">
                 Perbarui nama tampilan dan nomor WhatsApp tujuan pengingat.
               </p>
@@ -212,9 +286,13 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
 
           <form onSubmit={handleSaveProfile} className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Nama Lengkap</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Nama Lengkap
+              </label>
+
               <div className="relative">
                 <UserIcon className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+
                 <input
                   type="text"
                   required
@@ -227,9 +305,13 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Nomor WhatsApp</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Nomor WhatsApp
+              </label>
+
               <div className="relative">
                 <Phone className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+
                 <input
                   type="tel"
                   required
@@ -239,6 +321,7 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
                   className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 focus:outline-emerald-500 focus:border-emerald-500 text-sm text-slate-900 placeholder:text-slate-400"
                 />
               </div>
+
               <p className="text-[11px] text-slate-400 mt-1">
                 Nomor ini dipakai untuk login dan menerima pengingat makan dari sistem.
               </p>
@@ -248,6 +331,7 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
               <label className="block text-xs font-bold text-slate-700">
                 Konfirmasi Kata Sandi Saat Ini
               </label>
+
               <PasswordInput
                 value={profilePassword}
                 onChange={setProfilePassword}
@@ -255,6 +339,7 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
                 autoComplete="current-password"
                 icon={<Lock className="w-4 h-4" />}
               />
+
               <p className="text-[11px] text-slate-400 flex items-start gap-1">
                 <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                 Demi keamanan, perubahan nama dan nomor WhatsApp wajib dikonfirmasi dengan kata sandi Anda.
@@ -267,7 +352,9 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
               className="w-full py-3 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm shadow-md shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
             >
               <Save className="w-4 h-4" />
-              {isSavingProfile ? 'Menyimpan...' : 'Simpan Perubahan Profil'}
+              {isSavingProfile
+                ? 'Menyimpan...'
+                : 'Simpan Perubahan Profil'}
             </button>
           </form>
         </section>
@@ -278,8 +365,11 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
             <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
               <ShieldCheck className="w-5 h-5" />
             </div>
+
             <div>
-              <h2 className="text-lg font-bold text-slate-900">Keamanan Akun</h2>
+              <h2 className="text-lg font-bold text-slate-900">
+                Keamanan Akun
+              </h2>
               <p className="text-xs text-slate-500">
                 Ganti kata sandi secara berkala agar akun tetap aman.
               </p>
@@ -290,7 +380,10 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
 
           <form onSubmit={handleChangePassword} className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Kata Sandi Saat Ini</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Kata Sandi Saat Ini
+              </label>
+
               <PasswordInput
                 value={currentPassword}
                 onChange={setCurrentPassword}
@@ -301,7 +394,10 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Kata Sandi Baru</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Kata Sandi Baru
+              </label>
+
               <PasswordInput
                 value={newPassword}
                 onChange={setNewPassword}
@@ -312,7 +408,10 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Ulangi Kata Sandi Baru</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Ulangi Kata Sandi Baru
+              </label>
+
               <PasswordInput
                 value={confirmPassword}
                 onChange={setConfirmPassword}
@@ -328,7 +427,9 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
               className="w-full py-3 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm shadow-md shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
             >
               <ShieldCheck className="w-4 h-4" />
-              {isSavingPassword ? 'Memperbarui...' : 'Perbarui Kata Sandi'}
+              {isSavingPassword
+                ? 'Memperbarui...'
+                : 'Perbarui Kata Sandi'}
             </button>
           </form>
 
@@ -346,11 +447,15 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
       {/* Sesi */}
       <section className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-base font-bold text-slate-900">Sesi Perangkat Ini</h2>
+          <h2 className="text-base font-bold text-slate-900">
+            Sesi Perangkat Ini
+          </h2>
+
           <p className="text-xs text-slate-500 mt-0.5">
             Keluar dari akun pada perangkat ini. Anda perlu login kembali untuk mengakses dasbor.
           </p>
         </div>
+
         <button
           type="button"
           onClick={onLogout}

@@ -1,37 +1,25 @@
-"""Middleware keamanan: header HTTP pelindung browser.
 
-Lapisan ini tidak berhubungan dengan IP/CORS, jadi aman dipakai saat pameran
-di LAN yang alamat IP-nya berubah-ubah.
-
-Header yang dipasang:
-- ``X-Content-Type-Options: nosniff`` -> browser tidak menebak-nebak tipe file.
-- ``X-Frame-Options: DENY`` + ``frame-ancestors 'none'`` -> anti clickjacking.
-- ``Referrer-Policy: no-referrer`` -> alamat halaman tidak bocor ke situs lain.
-- ``Permissions-Policy`` -> matikan kamera/mikrofon/lokasi yang tidak dipakai.
-- ``Cross-Origin-Opener-Policy`` -> isolasi window dari situs lain.
-- ``Content-Security-Policy`` -> API hanya boleh memuat dirinya sendiri;
-  halaman dokumentasi (/docs, /redoc) diberi pengecualian karena Swagger UI
-  memuat aset dari CDN dan menjalankan skrip inline.
-- ``Strict-Transport-Security`` -> HANYA dikirim jika request sudah HTTPS,
-  supaya tidak memaksa browser ke HTTPS saat demo LAN masih memakai http.
-"""
-
-from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
-# Halaman dokumentasi interaktif butuh CDN + skrip inline.
-DOCS_PATHS = ("/docs", "/redoc", "/openapi.json")
+
+DOCS_PATHS = (
+    "/docs",
+    "/redoc",
+    "/openapi.json",
+)
 
 DOCS_CSP = (
     "default-src 'self'; "
     "img-src 'self' data: https://fastapi.tiangolo.com; "
     "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
-    "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
+    "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net "
+    "https://fonts.googleapis.com; "
     "font-src 'self' data: https://fonts.gstatic.com; "
     "connect-src 'self'; "
     "frame-ancestors 'none'; "
-    "base-uri 'none'"
+    "base-uri 'none'; "
+    "form-action 'none'"
 )
 
 API_CSP = (
@@ -45,38 +33,93 @@ BASE_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "no-referrer",
-    "Permissions-Policy": "geolocation=(), microphone=(), camera=(), payment=()",
+    "Permissions-Policy": (
+        "geolocation=(), "
+        "microphone=(), "
+        "camera=(), "
+        "payment=()"
+    ),
     "Cross-Origin-Opener-Policy": "same-origin",
-    # `cross-origin` agar frontend di port/IP berbeda tetap boleh mengambil data.
     "Cross-Origin-Resource-Policy": "cross-origin",
     "X-Permitted-Cross-Domain-Policies": "none",
 }
 
 
-def _is_https(request: Request) -> bool:
-    forwarded = request.headers.get("x-forwarded-proto", "")
-    if forwarded:
-        return forwarded.split(",")[0].strip().lower() == "https"
-    return request.url.scheme == "https"
+class SecurityHeadersMiddleware:
 
+    def __init__(self, app):
+        self.app = app
 
-class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next) -> Response:
-        response = await call_next(request)
+    async def __call__(self, scope, receive, send):
 
-        for header, value in BASE_HEADERS.items():
-            response.headers.setdefault(header, value)
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        request = Request(scope, receive=receive)
 
         path = request.url.path
-        is_docs = path in DOCS_PATHS or path.startswith("/docs/")
-        response.headers.setdefault(
-            "Content-Security-Policy", DOCS_CSP if is_docs else API_CSP
+
+        is_docs = (
+            path in DOCS_PATHS
+            or path.startswith("/docs/")
+            or path.startswith("/redoc/")
         )
 
-        if _is_https(request):
-            response.headers.setdefault(
-                "Strict-Transport-Security",
-                "max-age=31536000; includeSubDomains",
-            )
+        is_https = request.url.scheme == "https"
 
-        return response
+        if not is_https:
+            from app.config import settings
+
+            if settings.TRUST_PROXY_HEADERS:
+                forwarded_proto = request.headers.get(
+                    "x-forwarded-proto",
+                    "",
+                )
+
+                is_https = (
+                    forwarded_proto.split(",")[0].strip().lower()
+                    == "https"
+                )
+
+        async def send_with_security_headers(message):
+
+            if message["type"] == "http.response.start":
+
+                headers = list(message.get("headers", []))
+
+                existing_headers = {
+                    key.lower()
+                    for key, _ in headers
+                }
+
+                security_headers = dict(BASE_HEADERS)
+
+                security_headers["Content-Security-Policy"] = (
+                    DOCS_CSP if is_docs else API_CSP
+                )
+
+                if is_https:
+                    security_headers["Strict-Transport-Security"] = (
+                        "max-age=31536000; includeSubDomains"
+                    )
+
+                for name, value in security_headers.items():
+
+                    if name.lower().encode() not in existing_headers:
+                        headers.append(
+                            (
+                                name.lower().encode(),
+                                value.encode("latin-1"),
+                            )
+                        )
+
+                message["headers"] = headers
+
+            await send(message)
+
+        await self.app(
+            scope,
+            receive,
+            send_with_security_headers,
+        )
