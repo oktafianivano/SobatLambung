@@ -1,5 +1,6 @@
 
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -22,6 +23,28 @@ from app.api.router import (
 logger = logging.getLogger("sobat_lambung")
 
 IS_PRODUCTION = settings.APP_ENV.lower() == "production"
+
+
+# Deteksi platform PaaS yang selalu memakai HTTPS di edge. Tanpa
+# APP_ENV=production, cookie tidak memakai Secure dan SameSite=None akan
+# diturunkan menjadi Lax, sehingga sesi lintas origin hilang saat refresh.
+_PAAS_MARKERS = (
+    "RAILWAY_ENVIRONMENT",
+    "RAILWAY_PROJECT_ID",
+    "RENDER",
+    "DYNO",
+    "VERCEL",
+)
+
+if not IS_PRODUCTION and any(
+    os.getenv(marker) for marker in _PAAS_MARKERS
+):
+    logger.warning(
+        "Platform PaaS terdeteksi tetapi APP_ENV=%s. "
+        "Set APP_ENV=production di service variables agar cookie "
+        "memakai Secure dan sesi tidak ter-logout saat refresh.",
+        settings.APP_ENV,
+    )
 
 
 # Database initialization
@@ -158,6 +181,7 @@ def health_check():
         "status": "ok",
         "service": "sobat-lambung-api",
         "version": app.version,
+        "environment": settings.APP_ENV,
     }
 
 

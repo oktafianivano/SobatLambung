@@ -482,15 +482,17 @@ Response harus berisi `Set-Cookie: ...; Secure; SameSite=lax` (same-origin), buk
 
 #### Checklist setelah deploy
 
-1. Buka DevTools → **Application → Cookies**.
-2. Pastikan `access_token`, `refresh_token`, dan `csrf_token` memiliki:
+1. `GET https://<backend>/health` harus menampilkan `"environment": "production"`. Jika masih `development`, cookie tidak akan memakai `Secure` dan `SameSite=None` diturunkan menjadi `Lax` (penyebab logout saat refresh).
+2. `GET https://<backend>/docs` harus **404** di production.
+3. Buka DevTools → **Application → Cookies**.
+4. Pastikan `access_token`, `refresh_token`, dan `csrf_token` memiliki:
    - **Secure** ✓
    - **HttpOnly** ✓ untuk `access_token` & `refresh_token`
    - **SameSite** sesuai skenario (`Lax` untuk same-site, `None` untuk beda site)
    - **Expires/Max-Age** terisi (bukan *Session*)
-3. Refresh halaman (F5) → user tetap login.
-4. Tunggu access token kedaluwarsa (atau hapus cookie `access_token` saja) → refresh halaman harus tetap login karena `GET /api/v1/auth/session` memperbarui sesi dari `refresh_token`.
-5. Jika masih logout: cek `CORS_ORIGINS` sama persis dengan origin di address bar (termasuk `https://` dan tanpa trailing slash).
+5. Refresh halaman (F5) → user tetap login.
+6. Tunggu access token kedaluwarsa (atau hapus cookie `access_token` saja) → refresh halaman harus tetap login karena `GET /api/v1/auth/session` memperbarui sesi dari `refresh_token`.
+7. Jika masih logout: cek `CORS_ORIGINS` sama persis dengan origin di address bar (termasuk `https://` dan tanpa trailing slash). Hapus cookie lama di kedua domain sebelum menguji ulang.
 
 ## 📝 Lisensi
 Proyek ini dilisensikan di bawah **MIT License** — lihat file [LICENSE](LICENSE).

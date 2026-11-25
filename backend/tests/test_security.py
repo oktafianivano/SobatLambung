@@ -754,6 +754,42 @@ def test_cross_site_cookie_uses_samesite_none_and_partitioned(
     assert "secure" in set_cookie
 
 
+def test_production_trusts_forwarded_proto_for_secure_cookie(
+    client,
+    outbox,
+    monkeypatch,
+):
+    """Railway/Render menerminasi TLS lalu mengirim X-Forwarded-Proto.
+
+    Secure harus tetap aktif walau TRUST_PROXY_HEADERS tidak diset,
+    supaya SameSite=None tidak diturunkan menjadi Lax.
+    """
+
+    monkeypatch.setattr(settings, "APP_ENV", "production")
+    monkeypatch.setattr(settings, "TRUST_PROXY_HEADERS", False)
+    monkeypatch.setattr(settings, "COOKIE_SAMESITE", "auto")
+    monkeypatch.setattr(settings, "COOKIE_DOMAIN", None)
+    monkeypatch.setattr(settings, "COOKIE_PARTITIONED", None)
+
+    _register_and_verify(client, outbox)
+
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"no_wa": "081234567890", "password": "rahasia123"},
+        headers={
+            "origin": "https://frontend.example.com",
+            "x-forwarded-proto": "https",
+        },
+    )
+    assert login.status_code == 200, login.text
+
+    set_cookie = login.headers.get("set-cookie", "").lower()
+
+    assert "secure" in set_cookie
+    assert "samesite=none" in set_cookie
+    assert "partitioned" in set_cookie
+
+
 def test_railway_subdomains_are_different_sites():
     """up.railway.app adalah public suffix (PSL).
 

@@ -161,24 +161,24 @@ def _request_is_https(request: Optional[Request]) -> bool:
     if request.url.scheme == "https":
         return True
 
-    if settings.TRUST_PROXY_HEADERS:
-        forwarded_proto = request.headers.get(
-            "x-forwarded-proto",
-            "",
-        )
+    # Header ini hanya dipakai untuk menentukan flag Secure cookie.
+    # Aman dipercaya karena menyetel Secure pada request HTTPS selalu
+    # benar; bila header dipalsukan di HTTP, browser justru menolak
+    # cookie tersebut (tidak ada bypass keamanan).
+    forwarded_proto = request.headers.get(
+        "x-forwarded-proto",
+        "",
+    )
 
-        return (
-            forwarded_proto.split(",")[0].strip().lower()
-            == "https"
-        )
+    proto = forwarded_proto.split(",")[0].strip().lower()
 
-    return False
+    return proto == "https"
 
 
 def resolve_cookie_policy(request: Optional[Request] = None) -> CookiePolicy:
     """Hitung atribut cookie yang aman untuk request saat ini."""
 
-    secure = settings.cookie_secure
+    secure = settings.cookie_secure or _request_is_https(request)
     samesite = settings.COOKIE_SAMESITE
 
     # Browser menolak cookie Secure pada koneksi HTTP. Jika production
