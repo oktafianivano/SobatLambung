@@ -421,6 +421,7 @@ Catatan:
 - Harus HTTPS di kedua sisi; `SameSite=None` tanpa `Secure` akan ditolak browser.
 - Token CSRF tetap bekerja karena frontend menyimpan `csrf_token` dari body response **hanya di memori** dan mengirimnya sebagai header `X-CSRF-Token`. Token ini tidak pernah ditulis ke `localStorage`/`sessionStorage`.
 - `access_token` dan `refresh_token` selalu `HttpOnly`; JavaScript tidak pernah membaca atau menyimpannya.
+- Saat aplikasi dimuat, frontend membersihkan seluruh `localStorage`/`sessionStorage` kecuali state UI non-sensitif `sobat_lambung_active_tab`. Sisa key lama seperti `session` yang berisi `access_token`, `refresh_token`, `no_wa`, atau `no_wa_masked` akan terhapus otomatis. Data user hanya disimpan di memori React dan diambil ulang dari API.
 
 #### Opsi C — Subdomain dari domain yang sama
 

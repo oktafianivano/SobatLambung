@@ -10,9 +10,58 @@ const LEGACY_CSRF_KEY = 'sobat_lambung_csrf_token';
 export const SESSION_UPDATED_EVENT = 'sobatlambung:session-updated';
 export const SESSION_EXPIRED_EVENT = 'sobatlambung:session-expired';
 
-const hasStorage = () =>
-  typeof window !== 'undefined' &&
-  typeof window.localStorage !== 'undefined';
+const hasStorage = () => {
+  if (typeof window === 'undefined') return false;
+
+  try {
+    return typeof window.localStorage !== 'undefined';
+  } catch {
+    return false;
+  }
+};
+
+// Satu-satunya data yang boleh bertahan di browser adalah state UI
+// non-sensitif. Semua key lain (termasuk sisa "session" versi lama yang
+// berisi access_token/refresh_token/no_wa) dihapus saat aplikasi dimuat.
+const SAFE_STORAGE_KEYS = new Set<string>([TAB_KEY]);
+
+function purgeSensitiveStorage() {
+  if (typeof window === 'undefined') return;
+
+  const storages: Storage[] = [];
+
+  try {
+    if (window.localStorage) storages.push(window.localStorage);
+  } catch {
+    // Storage diblokir.
+  }
+
+  try {
+    if (window.sessionStorage) storages.push(window.sessionStorage);
+  } catch {
+    // Storage diblokir.
+  }
+
+  for (const storage of storages) {
+    try {
+      const keysToRemove: string[] = [];
+
+      for (let index = 0; index < storage.length; index += 1) {
+        const key = storage.key(index);
+
+        if (key && !SAFE_STORAGE_KEYS.has(key)) {
+          keysToRemove.push(key);
+        }
+      }
+
+      keysToRemove.forEach((key) => storage.removeItem(key));
+    } catch {
+      // Storage bisa diblokir (mode privat / kebijakan browser).
+    }
+  }
+}
+
+purgeSensitiveStorage();
 
 // Token CSRF hanya hidup di memori. Tidak pernah ditulis ke
 // localStorage/sessionStorage, sehingga tidak bertahan setelah tab ditutup
@@ -28,19 +77,33 @@ if (hasStorage()) {
 
 export function saveActiveTab(tab: string) {
   if (!hasStorage()) return;
-  localStorage.setItem(TAB_KEY, tab);
+
+  try {
+    localStorage.setItem(TAB_KEY, tab);
+  } catch {
+    // Storage penuh/diblokir: abaikan.
+  }
 }
 
 export function getSavedActiveTab(): string | null {
   if (!hasStorage()) return null;
-  return localStorage.getItem(TAB_KEY);
+
+  try {
+    return localStorage.getItem(TAB_KEY);
+  } catch {
+    return null;
+  }
 }
 
 export function storeCsrfToken(token: string | null | undefined) {
   csrfTokenInMemory = token || null;
 
-  if (hasStorage()) {
+  if (!hasStorage()) return;
+
+  try {
     localStorage.removeItem(LEGACY_CSRF_KEY);
+  } catch {
+    // Abaikan.
   }
 }
 
@@ -48,8 +111,13 @@ export function clearSession() {
   csrfTokenInMemory = null;
 
   if (!hasStorage()) return;
-  localStorage.removeItem(TAB_KEY);
-  localStorage.removeItem(LEGACY_CSRF_KEY);
+
+  try {
+    localStorage.removeItem(TAB_KEY);
+    localStorage.removeItem(LEGACY_CSRF_KEY);
+  } catch {
+    // Abaikan.
+  }
 }
 
 function getCsrfToken(): string | null {
