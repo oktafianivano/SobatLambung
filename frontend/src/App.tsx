@@ -41,32 +41,69 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
 
-    const validateSession = async () => {
-      try {
-        const response = await apiFetch(
-          '/auth/session',
-          {},
-          { auth: false },
-        );
+    const loadUser = async (): Promise<UserProfile | null> => {
+      const sessionResponse = await apiFetch(
+        '/auth/session',
+        {},
+        { auth: false },
+      );
 
-        if (!response.ok) {
-          if (
-            !cancelled &&
-            (response.status === 401 || response.status === 403)
-          ) {
-            setCurrentUser(null);
-            clearSession();
-          }
-          return;
-        }
-
-        const data = (await response.json()) as {
+      if (sessionResponse.ok) {
+        const data = (await sessionResponse.json()) as {
           user?: UserProfile;
         };
 
-        if (cancelled || !data.user) return;
+        if (data.user) return data.user;
+      }
 
-        setCurrentUser(data.user);
+      // Kompatibilitas dengan backend versi lama yang belum punya
+      // /auth/session. Jangan logout hanya karena endpoint 404.
+      if (
+        sessionResponse.status === 404 ||
+        sessionResponse.status === 405
+      ) {
+        const profileResponse = await apiFetch('/user/profile');
+
+        if (profileResponse.ok) {
+          return (await profileResponse.json()) as UserProfile;
+        }
+
+        if (profileResponse.status === 401 || profileResponse.status === 403) {
+          console.warn(
+            '[session] profil ditolak:',
+            profileResponse.status,
+          );
+        }
+
+        return null;
+      }
+
+      if (
+        sessionResponse.status === 401 ||
+        sessionResponse.status === 403
+      ) {
+        console.warn(
+          '[session] sesi tidak valid:',
+          sessionResponse.status,
+        );
+      }
+
+      return null;
+    };
+
+    const validateSession = async () => {
+      try {
+        const user = await loadUser();
+
+        if (cancelled) return;
+
+        if (!user) {
+          setCurrentUser(null);
+          clearSession();
+          return;
+        }
+
+        setCurrentUser(user);
         setActiveTab(getSavedActiveTab() ?? 'dashboard');
       } catch {
         // Gangguan jaringan tidak otomatis menghapus sesi.

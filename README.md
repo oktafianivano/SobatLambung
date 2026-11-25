@@ -359,6 +359,8 @@ Backend sudah menangani dua skenario:
 
 > Rekomendasi terkuat: gunakan **satu domain** untuk frontend dan API. Safari dan sebagian browser tetap membatasi cookie third-party meskipun `SameSite=None`; same-origin menghilangkan masalah itu sepenuhnya.
 
+> **Catatan HTTP:** browser tidak mengizinkan cookie `Secure` di koneksi HTTP. Jika production masih diakses lewat HTTP, backend otomatis mengirim cookie tanpa `Secure` + mencatat warning di log agar login tidak langsung hilang saat refresh. Ini hanya jaring pengaman; production tetap **wajib HTTPS** agar flag `Secure` aktif.
+
 #### Opsi A — Same-origin (disarankan, Docker Compose)
 
 Root `.env` (dibaca `docker-compose.yml`):
@@ -432,6 +434,51 @@ VITE_API_URL=https://api.sobatlambung.id
 ```
 
 `COOKIE_DOMAIN` harus berupa hostname parent tanpa `https://` dan tanpa port.
+
+#### Opsi D — Railway: dua service, satu origin lewat proxy nginx
+
+Domain `*.up.railway.app` adalah **public suffix** (terdaftar di Public Suffix List). Artinya `frontend.up.railway.app` dan `backend.up.railway.app` dianggap **site berbeda** oleh browser, sehingga cookie `SameSite=Lax` tidak akan dikirim dan user ter-logout saat refresh.
+
+Solusi paling andal: biarkan browser hanya melihat **satu origin** (domain frontend), lalu nginx frontend mem-proxy `/api` ke backend.
+
+**Frontend service → Variables:**
+```env
+# Kosongkan agar bundle memakai origin yang sama (bukan URL backend langsung)
+VITE_API_URL=
+# Private networking (disarankan). Ganti nama service sesuai Railway.
+BACKEND_URL=http://sobatlambung-production.railway.internal:8000
+# Resolver internal Railway
+NGINX_RESOLVER=[fd12::10] ipv6=on
+```
+
+Jika private networking tidak tersedia, boleh memakai URL publik backend:
+```env
+BACKEND_URL=https://sobatlambung-production.up.railway.app
+NGINX_RESOLVER=[fd12::10] ipv6=on
+```
+
+**Backend service → Variables:**
+```env
+APP_ENV=production
+COOKIE_SECURE=true
+COOKIE_SAMESITE=auto
+COOKIE_DOMAIN=
+TRUST_PROXY_HEADERS=true
+CORS_ORIGINS=https://sparkling-unity-production.up.railway.app
+```
+
+Lalu **redeploy frontend** (agar `VITE_API_URL` kosong ikut ter-build) dan backend.
+
+Verifikasi dari terminal:
+```bash
+curl -i -X POST https://sparkling-unity-production.up.railway.app/api/v1/auth/logout \
+  -H 'Origin: https://sparkling-unity-production.up.railway.app'
+```
+Response harus berisi `Set-Cookie: ...; Secure; SameSite=lax` (same-origin), bukan `SameSite=lax` tanpa `Secure`.
+
+> Jangan set `COOKIE_DOMAIN=.up.railway.app`. Itu public suffix; browser akan menolak cookie. Biarkan `COOKIE_DOMAIN` kosong.
+
+> Jika tetap memilih dua origin terpisah, `SameSite=None; Secure; Partitioned` bisa bekerja di Chrome, tetapi Safari/WebView tetap dapat memblokir cookie third-party. Same-origin adalah satu-satunya solusi yang konsisten.
 
 #### Checklist setelah deploy
 

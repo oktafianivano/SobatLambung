@@ -18,7 +18,18 @@ RUN npm run build
 # --- Tahap runtime ---
 FROM nginx:1.27-alpine
 
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Nilai default untuk Docker Compose. Di Railway, timpa lewat service
+# variables:
+#   BACKEND_URL=http://<service>.railway.internal:8000
+#   NGINX_RESOLVER=[fd12::10] ipv6=on
+# atau BACKEND_URL=https://<backend>.up.railway.app (proxy server-side).
+ENV BACKEND_URL=http://backend:8000 \
+    NGINX_RESOLVER="127.0.0.11 ipv6=off" \
+    NGINX_ENVSUBST_FILTER="^(BACKEND_URL|NGINX_RESOLVER)$"
+
+# Entrypoint resmi nginx akan menjalankan envsubst dan menulis
+# /etc/nginx/conf.d/default.conf dari template ini saat container start.
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
 
 EXPOSE 80

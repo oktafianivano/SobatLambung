@@ -9,6 +9,7 @@ yang saling bertabrakan.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -19,14 +20,17 @@ from fastapi import Request
 from app.config import settings
 
 
+logger = logging.getLogger("sobat_lambung")
+
 ACCESS_COOKIE_NAME = "access_token"
 REFRESH_COOKIE_NAME = "refresh_token"
 CSRF_COOKIE_NAME = "csrf_token"
 
 
-# Public suffix dua tingkat yang umum dipakai di Indonesia/internasional.
-# Dipakai hanya untuk menebak registrable domain saat menentukan same-site.
-_MULTI_LABEL_SUFFIXES = {
+# Public suffix yang umum dipakai. Dipakai untuk menentukan registrable
+# domain (eTLD+1) saat memutuskan same-site vs cross-site.
+# Sumber: https://publicsuffix.org/list/public_suffix_list.dat
+_PUBLIC_SUFFIXES = {
     "ac.id",
     "co.id",
     "com.br",
@@ -37,16 +41,25 @@ _MULTI_LABEL_SUFFIXES = {
     "co.jp",
     "co.nz",
     "co.uk",
+    "fly.dev",
+    "github.io",
     "go.id",
     "gov.uk",
+    "herokuapp.com",
     "mil.id",
     "net.au",
     "net.id",
+    "netlify.app",
+    "onrender.com",
     "org.au",
     "org.id",
     "org.uk",
+    "pages.dev",
     "sch.id",
+    "up.railway.app",
+    "vercel.app",
     "web.id",
+    "workers.dev",
 }
 
 
@@ -59,9 +72,13 @@ class CookiePolicy:
 
 
 def _registrable_site(host: str) -> str:
-    """Perkiraan registrable domain dari sebuah hostname.
+    """Perkiraan registrable domain (eTLD+1) dari sebuah hostname.
 
-    Contoh: ``api.sobatlambung.id`` -> ``sobatlambung.id``.
+    Contoh:
+    - ``api.sobatlambung.id`` -> ``sobatlambung.id``
+    - ``foo.up.railway.app`` -> ``foo.up.railway.app`` (public suffix
+      ``up.railway.app``, jadi setiap subdomain Railway adalah site berbeda)
+
     Hostname berupa IP atau localhost dikembalikan apa adanya.
     """
 
@@ -74,17 +91,26 @@ def _registrable_site(host: str) -> str:
     if host.startswith("[") or ":" in host:
         return host
 
-    parts = host.split(".")
+    labels = host.split(".")
 
-    if len(parts) <= 2:
+    # IPv4 literal.
+    if len(labels) == 4 and all(
+        part.isdigit() for part in labels
+    ):
         return host
 
-    last_two = ".".join(parts[-2:])
+    if len(labels) <= 2:
+        return host
 
-    if last_two in _MULTI_LABEL_SUFFIXES:
-        return ".".join(parts[-3:])
+    # Cari public suffix terpanjang yang cocok, lalu ambil satu label
+    # di depannya sebagai registrable domain.
+    for index in range(1, len(labels)):
+        suffix = ".".join(labels[index:])
 
-    return last_two
+        if suffix in _PUBLIC_SUFFIXES:
+            return ".".join(labels[index - 1 :])
+
+    return ".".join(labels[-2:])
 
 
 def is_cross_site_request(request: Request) -> bool:
@@ -128,11 +154,45 @@ def is_cross_site_request(request: Request) -> bool:
     return _registrable_site(origin_host) != _registrable_site(request_host)
 
 
+def _request_is_https(request: Optional[Request]) -> bool:
+    if request is None:
+        return False
+
+    if request.url.scheme == "https":
+        return True
+
+    if settings.TRUST_PROXY_HEADERS:
+        forwarded_proto = request.headers.get(
+            "x-forwarded-proto",
+            "",
+        )
+
+        return (
+            forwarded_proto.split(",")[0].strip().lower()
+            == "https"
+        )
+
+    return False
+
+
 def resolve_cookie_policy(request: Optional[Request] = None) -> CookiePolicy:
     """Hitung atribut cookie yang aman untuk request saat ini."""
 
     secure = settings.cookie_secure
     samesite = settings.COOKIE_SAMESITE
+
+    # Browser menolak cookie Secure pada koneksi HTTP. Jika production
+    # diakses tanpa HTTPS, jangan biarkan login "berhasil" di UI tetapi
+    # cookie-nya dibuang browser (gejala: logout saat refresh).
+    if secure and request is not None and not _request_is_https(request):
+        logger.warning(
+            "COOKIE_SECURE aktif tetapi request bukan HTTPS. "
+            "Cookie autentikasi dikirim tanpa flag Secure agar sesi "
+            "tetap berjalan. SEGERA aktifkan HTTPS untuk production. "
+            "Jika TLS diterminasi reverse proxy, set "
+            "TRUST_PROXY_HEADERS=true."
+        )
+        secure = False
 
     if samesite == "auto":
         samesite = "none" if request is not None and is_cross_site_request(request) else "lax"

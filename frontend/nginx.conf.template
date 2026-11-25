@@ -1,3 +1,10 @@
+# Pertahankan X-Forwarded-Proto dari TLS terminator (Cloudflare/Caddy)
+# bila ada; jika tidak, pakai skema koneksi ke nginx ini.
+map $http_x_forwarded_proto $forwarded_proto {
+    default $http_x_forwarded_proto;
+    ""      $scheme;
+}
+
 server {
     listen 80;
     server_name _;
@@ -9,10 +16,14 @@ server {
     gzip_min_length 1024;
     gzip_types text/plain text/css application/javascript application/json image/svg+xml;
 
-    # Resolve nama service Docker saat request berjalan (bukan saat start),
-    # sehingga image frontend tetap bisa dipakai tanpa service "backend".
-    resolver 127.0.0.11 ipv6=off valid=30s;
-    set $backend_upstream http://backend:8000;
+    # Resolve nama service saat request berjalan (bukan saat start).
+    # Docker Compose memakai DNS internal 127.0.0.11; Railway memakai
+    # [fd12::10] untuk private networking. Atur lewat env NGINX_RESOLVER.
+    resolver ${NGINX_RESOLVER} valid=30s;
+
+    # Docker Compose: http://backend:8000
+    # Railway: http://<service>.railway.internal:8000 atau URL publik backend.
+    set $backend_upstream ${BACKEND_URL};
 
     # Same-origin API: cookie autentikasi menjadi first-party sehingga
     # tidak diblokir browser dan tetap terkirim setelah refresh halaman.
@@ -20,10 +31,13 @@ server {
         proxy_pass $backend_upstream;
         proxy_http_version 1.1;
 
+        # Diperlukan bila BACKEND_URL memakai https (mis. URL publik Railway).
+        proxy_ssl_server_name on;
+
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Proto $forwarded_proto;
 
         proxy_connect_timeout 10s;
         proxy_send_timeout 75s;
@@ -33,7 +47,7 @@ server {
     location = /health {
         proxy_pass $backend_upstream/health;
         proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Proto $forwarded_proto;
     }
 
     # File hasil build punya hash di nama → aman di-cache lama.

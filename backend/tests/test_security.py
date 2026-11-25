@@ -672,6 +672,11 @@ def test_production_cookie_flags_are_secure(client, outbox, monkeypatch):
     monkeypatch.setattr(settings, "COOKIE_SAMESITE", "auto")
     monkeypatch.setattr(settings, "COOKIE_DOMAIN", None)
     monkeypatch.setattr(settings, "COOKIE_PARTITIONED", None)
+    # TestClient berjalan di HTTP; simulasi request HTTPS.
+    monkeypatch.setattr(
+        "app.cookies._request_is_https",
+        lambda request: True,
+    )
 
     _register_and_verify(client, outbox)
     login = _login(client)
@@ -686,6 +691,38 @@ def test_production_cookie_flags_are_secure(client, outbox, monkeypatch):
     assert "samesite=lax" in set_cookie
 
 
+def test_production_over_http_does_not_break_session(
+    client,
+    outbox,
+    monkeypatch,
+):
+    """Cookie Secure di HTTP akan dibuang browser.
+
+    Backend menurunkan flag Secure saat request bukan HTTPS supaya user
+    tidak login lalu langsung ter-logout saat refresh. Warning tetap
+    dicatat di log agar operator segera mengaktifkan HTTPS.
+    """
+
+    monkeypatch.setattr(settings, "APP_ENV", "production")
+    monkeypatch.setattr(settings, "COOKIE_SECURE", True)
+    monkeypatch.setattr(settings, "COOKIE_SAMESITE", "auto")
+    monkeypatch.setattr(settings, "COOKIE_DOMAIN", None)
+    monkeypatch.setattr(settings, "COOKIE_PARTITIONED", None)
+
+    _register_and_verify(client, outbox)
+    login = _login(client)
+    assert login.status_code == 200, login.text
+
+    set_cookie = login.headers.get("set-cookie", "").lower()
+    assert "secure" not in set_cookie
+
+    client.cookies.delete("access_token")
+    profile = client.get("/api/v1/user/profile")
+
+    assert profile.status_code == 200, profile.text
+    assert client.cookies.get("access_token")
+
+
 def test_cross_site_cookie_uses_samesite_none_and_partitioned(
     client,
     outbox,
@@ -696,6 +733,10 @@ def test_cross_site_cookie_uses_samesite_none_and_partitioned(
     monkeypatch.setattr(settings, "COOKIE_SAMESITE", "auto")
     monkeypatch.setattr(settings, "COOKIE_DOMAIN", None)
     monkeypatch.setattr(settings, "COOKIE_PARTITIONED", None)
+    monkeypatch.setattr(
+        "app.cookies._request_is_https",
+        lambda request: True,
+    )
 
     _register_and_verify(client, outbox)
 
@@ -711,6 +752,28 @@ def test_cross_site_cookie_uses_samesite_none_and_partitioned(
     assert "samesite=none" in set_cookie
     assert "partitioned" in set_cookie
     assert "secure" in set_cookie
+
+
+def test_railway_subdomains_are_different_sites():
+    """up.railway.app adalah public suffix (PSL).
+
+    Dua service Railway pada domain *.up.railway.app adalah site berbeda,
+    sehingga cookie harus SameSite=None; Lax akan diblokir browser.
+    """
+
+    from app.cookies import _registrable_site
+
+    frontend = _registrable_site(
+        "sparkling-unity-production.up.railway.app"
+    )
+    backend = _registrable_site(
+        "sobatlambung-production.up.railway.app"
+    )
+
+    assert frontend == "sparkling-unity-production.up.railway.app"
+    assert backend == "sobatlambung-production.up.railway.app"
+    assert frontend != backend
+
 
 
 def test_session_endpoint_restores_access_from_refresh_cookie(client, outbox):
@@ -762,7 +825,10 @@ def test_refresh_accepts_csrf_from_body_when_cookie_unreadable(
 
     refreshed = client.post(
         "/api/v1/auth/refresh",
-        headers={"x-csrf-token": csrf_token},
+        headers={
+            "x-csrf-token": csrf_token,
+            "origin": "http://testserver",
+        },
     )
 
     assert refreshed.status_code == 200, refreshed.text
