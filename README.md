@@ -419,7 +419,8 @@ CORS_ORIGINS=https://sobatlambung.id
 Catatan:
 - `COOKIE_DOMAIN` **jangan** diisi bila kedua host tidak berbagi parent domain.
 - Harus HTTPS di kedua sisi; `SameSite=None` tanpa `Secure` akan ditolak browser.
-- Token CSRF tetap bekerja karena frontend menyimpan `csrf_token` dari body response dan mengirimnya sebagai header `X-CSRF-Token`.
+- Token CSRF tetap bekerja karena frontend menyimpan `csrf_token` dari body response **hanya di memori** dan mengirimnya sebagai header `X-CSRF-Token`. Token ini tidak pernah ditulis ke `localStorage`/`sessionStorage`.
+- `access_token` dan `refresh_token` selalu `HttpOnly`; JavaScript tidak pernah membaca atau menyimpannya.
 
 #### Opsi C — Subdomain dari domain yang sama
 

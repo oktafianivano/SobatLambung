@@ -2,7 +2,10 @@
 import { apiUrl } from '../services/api';
 
 const TAB_KEY = 'sobat_lambung_active_tab';
-const CSRF_KEY = 'sobat_lambung_csrf_token';
+
+// Kunci lama: dulu token CSRF disimpan di localStorage. Sekarang hanya
+// dipakai untuk membersihkan sisa data di browser pengguna.
+const LEGACY_CSRF_KEY = 'sobat_lambung_csrf_token';
 
 export const SESSION_UPDATED_EVENT = 'sobatlambung:session-updated';
 export const SESSION_EXPIRED_EVENT = 'sobatlambung:session-expired';
@@ -10,6 +13,18 @@ export const SESSION_EXPIRED_EVENT = 'sobatlambung:session-expired';
 const hasStorage = () =>
   typeof window !== 'undefined' &&
   typeof window.localStorage !== 'undefined';
+
+// Token CSRF hanya hidup di memori. Tidak pernah ditulis ke
+// localStorage/sessionStorage, sehingga tidak bertahan setelah tab ditutup
+// dan tidak bisa dicuri lewat pemeriksaan storage.
+let csrfTokenInMemory: string | null = null;
+
+// Bersihkan token CSRF lama yang mungkin masih tersimpan dari versi
+// sebelumnya. Access/refresh token sendiri selalu HttpOnly dan tidak pernah
+// disentuh JavaScript.
+if (hasStorage()) {
+  localStorage.removeItem(LEGACY_CSRF_KEY);
+}
 
 export function saveActiveTab(tab: string) {
   if (!hasStorage()) return;
@@ -22,33 +37,41 @@ export function getSavedActiveTab(): string | null {
 }
 
 export function storeCsrfToken(token: string | null | undefined) {
-  if (!hasStorage() || !token) return;
-  localStorage.setItem(CSRF_KEY, token);
+  csrfTokenInMemory = token || null;
+
+  if (hasStorage()) {
+    localStorage.removeItem(LEGACY_CSRF_KEY);
+  }
 }
 
 export function clearSession() {
+  csrfTokenInMemory = null;
+
   if (!hasStorage()) return;
   localStorage.removeItem(TAB_KEY);
-  localStorage.removeItem(CSRF_KEY);
+  localStorage.removeItem(LEGACY_CSRF_KEY);
 }
 
 function getCsrfToken(): string | null {
+  if (csrfTokenInMemory) {
+    return csrfTokenInMemory;
+  }
+
+  // Fallback same-origin: cookie CSRF tidak HttpOnly sehingga bisa dibaca
+  // JavaScript. Untuk deployment beda origin, token diambil dari body
+  // response /auth/session lalu disimpan di memori.
   if (typeof document !== 'undefined') {
     const cookie = document.cookie
       .split('; ')
       .find((item) => item.startsWith('csrf_token='));
 
     if (cookie) {
-      return decodeURIComponent(
+      csrfTokenInMemory = decodeURIComponent(
         cookie.substring('csrf_token='.length),
       );
-    }
-  }
 
-  // Deployment beda origin: cookie API tidak bisa dibaca JavaScript.
-  // Token dari body response login/refresh disimpan di localStorage.
-  if (hasStorage()) {
-    return localStorage.getItem(CSRF_KEY);
+      return csrfTokenInMemory;
+    }
   }
 
   return null;
